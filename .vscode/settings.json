@@ -1,0 +1,4 @@
+{
+  "deno.enablePaths": ["./tests"],
+  "cSpell.words": ["Janssen", "keychain", "parens", "stxdx"]
+}

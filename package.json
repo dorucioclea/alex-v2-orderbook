@@ -1,0 +1,55 @@
+{
+  "name": "alex-v2-orderbook",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "install-dao": "cd alex-v1/clarity && ./scripts/clarinet_manager.sh install alex_dao",
+    "generate-order-hash": "ts-node ./scripts/generate-order-hash",
+    "seed-to-private-key": "ts-node ./scripts/seed-to-private-key",
+    "sign-order-hash": "ts-node ./scripts/sign-order-hash",
+    "test": "clarinet test tests/*",
+    "prepare": "husky install"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alexgo-io/alex-v2-orderbook.git"
+  },
+  "keywords": [],
+  "author": "ALEX Dev Team",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/alexgo-io/alex-v2-orderbook/issues"
+  },
+  "homepage": "https://github.com/alexgo-io/alex-v2-orderbook#readme",
+  "devDependencies": {
+    "@stacks/keychain": "^4.2.2",
+    "@stacks/transactions": "^4.2.1",
+    "@types/node": "^18.0.0",
+    "husky": ">=8",
+    "lint-staged": ">=13",
+    "prettier": "^2.7.0",
+    "prettier-plugin-organize-imports": "^2.3.4",
+    "ts-node": "^10.8.1",
+    "typescript": "^4.7.3"
+  },
+  "engines": {
+    "node": ">=16.0.0 <17.0.0"
+  },
+  "lint-staged": {
+    "*.{js,json,md,ts,tsx}": [
+      "prettier --write"
+    ]
+  },
+  "prettier": {
+    "singleQuote": true,
+    "semi": true,
+    "tabWidth": 2,
+    "arrowParens": "avoid",
+    "trailingComma": "all",
+    "printWidth": 80
+  }
+}
