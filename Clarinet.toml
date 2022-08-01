@@ -36,6 +36,10 @@ depends_on = [ "stxdx-registry", "stxdx-wallet-zero" ]
 path = "contracts/helpers/register-user-helper-v1.clar"
 depends_on = [ "stxdx-registry", "stxdx-wallet-zero", "token-wxusd", "token-wbtc", "age000-governance-token" ]
 
+[contracts.register-user-helper-v1-1]
+path = "contracts/helpers/register-user-helper-v1-1.clar"
+depends_on = [ "stxdx-registry", "stxdx-wallet-zero", "token-wxusd", "token-wbtc", "age000-governance-token", "token-wstx" ]
+
 [contracts.alex-reserve-pool]
 path = "alex-v1/clarity/contracts/pool/alex-reserve-pool.clar"
 depends_on = [
