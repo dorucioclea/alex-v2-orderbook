@@ -4,8 +4,7 @@
 (define-constant err-unauthorised-sender (err u3000))
 (define-constant err-maker-asset-mismatch (err u3001))
 (define-constant err-taker-asset-mismatch (err u3002))
-(define-constant err-maker-asset-data-mismatch (err u3003))
-(define-constant err-taker-asset-data-mismatch (err u3004))
+(define-constant err-asset-data-mismatch (err u3003))
 (define-constant err-left-order-expired (err u3005))
 (define-constant err-right-order-expired (err u3006))
 (define-constant err-left-authorisation-failed (err u3007))
@@ -182,12 +181,31 @@
 			(left-order-fill (get order-1 order-fills))
 			(right-order-fill (get order-2 order-fills))
 			(fillable (min (- (get maximum-fill left-order) left-order-fill) (- (get maximum-fill right-order) right-order-fill)))
+			(left-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data left-order))))
+			(left-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data left-order))))
+			(right-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data right-order))))
+			(right-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data right-order))))
+			(left-order-make (min left-maker-asset-amount right-taker-asset-amount))
+			(right-order-make (min left-taker-asset-amount right-maker-asset-amount))
 		)
 		(try! (is-authorised-sender))		
 		(asserts! (is-eq (get maker-asset left-order) (get taker-asset right-order)) err-maker-asset-mismatch)
 		(asserts! (is-eq (get taker-asset left-order) (get maker-asset right-order)) err-taker-asset-mismatch)
-		(asserts! (is-eq (get maker-asset-data left-order) (get taker-asset-data right-order)) err-maker-asset-data-mismatch)
-		(asserts! (is-eq (get taker-asset-data left-order) (get maker-asset-data right-order)) err-taker-asset-data-mismatch)
+		;; one side matches and the taker of the other side is smaller than maker.
+		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
+		(asserts! 
+			(or 
+				(and 
+					(is-eq left-maker-asset-amount right-taker-asset-amount)
+					(<= left-taker-asset-amount right-maker-asset-amount)
+			 	)
+				(and
+					(is-eq left-taker-asset-amount right-maker-asset-amount)
+					(>= left-maker-asset-amount right-taker-asset-amount)
+				) 
+			)
+			err-asset-data-mismatch
+		)
 		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
 		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)
 		(match fill
@@ -203,7 +221,9 @@
 			right-order-hash: right-order-hash,
 			left-order-fill: left-order-fill,
 			right-order-fill: right-order-fill,
-			fillable: fillable
+			fillable: fillable,
+			left-order-make: left-order-make,
+			right-order-make: right-order-make
 			}
 		)
 	)
@@ -304,11 +324,13 @@
 		(
 			(validation-data (try! (validate-match left-order right-order left-signature right-signature fill)))
 			(fillable (match fill value value (get fillable validation-data)))
+			(left-order-make (get left-order-make validation-data))
+			(right-order-make (get right-order-make validation-data))
 		)
-		(try! (settle-order left-order (* fillable (try! (asset-data-to-uint (get maker-asset-data left-order)))) (get maker right-order)))
-		(try! (settle-order right-order (* fillable (try! (asset-data-to-uint (get maker-asset-data right-order)))) (get maker left-order)))
+		(try! (settle-order left-order (* fillable left-order-make) (get maker right-order)))
+		(try! (settle-order right-order (* fillable right-order-make) (get maker left-order)))
 		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))
-		(ok fillable)
+		(ok { fillable: fillable, left-order-make: left-order-make, right-order-make: right-order-make })
 	)
 )
 
