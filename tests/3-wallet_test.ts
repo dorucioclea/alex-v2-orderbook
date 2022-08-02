@@ -63,6 +63,11 @@ Clarinet.test({
       ),
     ]);
     block.receipts[0].result.expectOk();
-    console.log(block.receipts[0].events);
+    block.receipts[0].events.expectSTXTransferEvent(
+      1e6,
+      deployer.address + '.stxdx-wallet-zero',
+      sender.address,
+    );
+    // console.log(block.receipts[0].events);
   },
 });
