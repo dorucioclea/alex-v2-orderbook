@@ -106,6 +106,8 @@ Clarinet.test({
       'left-order-hash': left_order_hash,
       'right-order-fill': types.uint(0),
       'right-order-hash': right_order_hash,
+      'left-order-make': types.uint(14e8),
+      'right-order-make': types.uint(1e8),
     });
   },
 });
