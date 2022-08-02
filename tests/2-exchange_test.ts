@@ -89,8 +89,11 @@ Clarinet.test({
         sender.address,
       ),
     ]);
-    block.receipts[0].result.expectOk().expectTuple();
-    console.log(block.receipts[0].events);
+    block.receipts[0].result
+      .expectOk()
+      .expectTuple()
+      ['fillable'].expectUint(50);
+    // console.log(block.receipts[0].events);
   },
 });
 
