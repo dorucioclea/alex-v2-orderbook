@@ -59,15 +59,15 @@ Orders pass the authorisation step if one of the following four conditions is me
 ```lisp
 	{
 	sender: uint,
-	sender-fee: uint,
+	sender_fee: uint,
 	maker: uint,
-	maker-asset: uint,
-	taker-asset: uint,
-	maker-asset-data: (buff 256),
-	taker-asset-data: (buff 256),
-	maximum-fill: uint,
-	expiration-height: uint,
-	extra-data: (buff 256),
+	maker_asset: uint,
+	taker_asset: uint,
+	maker_asset_data: (buff 256),
+	taker_asset_data: (buff 256),
+	maximum_fill: uint,
+	expiration_height: uint,
+	extra_data: (buff 256),
 	salt: uint
 	}
 ```
