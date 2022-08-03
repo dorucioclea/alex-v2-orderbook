@@ -36,15 +36,15 @@ function toBuffer(input: string) {
 function orderToTupleCV(order: { [key: string]: any }) {
   const expected_struct = {
     'sender': uintCV,
-    'sender-fee': uintCV,
+    'sender_fee': uintCV,
     'maker': uintCV,
-    'maker-asset': uintCV,
-    'taker-asset': uintCV,
-    'maker-asset-data': (input: string) => bufferCV(toBuffer(input)),
-    'taker-asset-data': (input: string) => bufferCV(toBuffer(input)),
-    'maximum-fill': uintCV,
-    'expiration-height': uintCV,
-    'extra-data': (input: string) => bufferCV(toBuffer(input)),
+    'maker_asset': uintCV,
+    'taker_asset': uintCV,
+    'maker_asset_data': (input: string) => bufferCV(toBuffer(input)),
+    'taker_asset_data': (input: string) => bufferCV(toBuffer(input)),
+    'maximum_fill': uintCV,
+    'expiration_height': uintCV,
+    'extra_data': (input: string) => bufferCV(toBuffer(input)),
     'salt': uintCV,
   };
   const orderTuple: { [key: string]: any } = {};
