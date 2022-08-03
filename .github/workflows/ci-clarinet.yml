@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          submodules: recursive      
+          submodules: true      
       - name: "Check contract"
         uses: docker://hirosystems/clarinet:0.27.0
         with:
@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          submodules: recursive      
+          submodules: true      
       - name: "Set CI env"
         run: |
           echo "ci_env=$(bash <(curl -s https://codecov.io/env))" >> $GITHUB_ENV
