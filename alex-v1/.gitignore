@@ -17,4 +17,4 @@ node_modules
 /contract-records.json
 yarn-error.log
 tsconfig.tsbuildinfo
-# contracts_modules
+contracts_modules
