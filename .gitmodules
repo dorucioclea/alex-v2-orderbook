@@ -3,4 +3,4 @@
 	url = git@github.com:alexgo-io/alex-v1.git
 [submodule "alex-dao"]
 	path = alex-dao
-	url = https://github.com/alexgo-io/alex-dao.git
+	url = git@github.com:alexgo-io/alex-dao.git
