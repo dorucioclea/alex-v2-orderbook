@@ -20,35 +20,35 @@ Clarinet.test({
 
     const left_order = orderToTupleCV({
       sender: 1,
-      'sender-fee': 1e8,
+      'sender_fee': 1e8,
       maker: 2,
-      'maker-asset': 1,
-      'taker-asset': 2,
-      'maker-asset-data': '0x004E7253000000000000000000000000',
-      'taker-asset-data': '0x00E1F505000000000000000000000000',
-      'maximum-fill': 100,
-      'expiration-height': 100,
-      'extra-data': '0x',
+      'maker_asset': 1,
+      'taker_asset': 2,
+      'maker_asset_data': '0x004E7253000000000000000000000000',
+      'taker_asset_data': '0x00E1F505000000000000000000000000',
+      'maximum_fill': 100,
+      'expiration_height': 100,
+      'extra_data': '0x',
       salt: 1,
     });
     const right_order = orderToTupleCV({
       sender: 1,
-      'sender-fee': 1e8,
+      'sender_fee': 1e8,
       maker: 3,
-      'maker-asset': 2,
-      'taker-asset': 1,
-      'maker-asset-data': '0x00E1F505000000000000000000000000',
-      'taker-asset-data': '0x004E7253000000000000000000000000',
-      'maximum-fill': 50,
-      'expiration-height': 100,
-      'extra-data': '0x',
+      'maker_asset': 2,
+      'taker_asset': 1,
+      'maker_asset_data': '0x00E1F505000000000000000000000000',
+      'taker_asset_data': '0x004E7253000000000000000000000000',
+      'maximum_fill': 50,
+      'expiration_height': 100,
+      'extra_data': '0x',
       salt: 2,
     });
 
     const left_signature =
-      '0xf683892aeb1ee85dbaf13f4f755dce11226496a923625dd6734bfb0a3afc35c103de2d41bd57a8e01d0923b4e9bb65ef5055d99e8e4cbd59b0c7259a91034d3500';
+      '0xee246c568e7eba56b30b3a643984b348c5a687e4d549e818ceb79280e9eaca401dfc99926ece91ec9e3af4d3ac2dc402cff5ec55ecade4bb25b53314a83e6f5801';
     const right_signature =
-      '0x5ebb47614350f292ca7207cb138375ffd976f3ff29ef807147da97448a084d540af1f8b0ffbf9d15d92e1831fd6f9a702d32af027f857e09d533d07d8db875f800';
+      '0x012e2ec0fdc8f1e91f3e46cc6c9bf861f1b7f44c5fc7a70f2ce34d49fc803df01b48cb1341d3c9c60f69fa13cea485156cf914fbd9838634c3ee32d09f40500500';
 
     // const block = chain.mineBlock([
     //   Tx.contractCall(
