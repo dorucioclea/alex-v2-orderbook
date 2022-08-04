@@ -109,39 +109,39 @@ Clarinet.test({
 
     const left_order = orderToTupleCV({
       sender: 1,
-      'sender-fee': 1e8,
+      sender_fee: 1e8,
       maker: 2,
-      'maker-asset': 1,
-      'taker-asset': 2,
-      'maker-asset-data': '0x47590000000000000000000000000000', // u22855
-      'taker-asset-data': '0x01000000000000000000000000000000',
-      'maximum-fill': 100,
-      'expiration-height': 100,
-      'extra-data': '0x',
+      maker_asset: 1,
+      taker_asset: 2,
+      maker_asset_data: '0x47590000000000000000000000000000', // u22855
+      taker_asset_data: '0x01000000000000000000000000000000',
+      maximum_fill: 100,
+      expiration_height: 100,
+      extra_data: '0x',
       salt: 1,
     });
     const right_order = orderToTupleCV({
       sender: 1,
-      'sender-fee': 1e8,
+      sender_fee: 1e8,
       maker: 3,
-      'maker-asset': 2,
-      'taker-asset': 1,
-      'maker-asset-data': '0x01000000000000000000000000000000',
-      'taker-asset-data': '0x18590000000000000000000000000000', // u22808
-      'maximum-fill': 50,
-      'expiration-height': 100,
-      'extra-data': '0x',
+      maker_asset: 2,
+      taker_asset: 1,
+      maker_asset_data: '0x01000000000000000000000000000000',
+      taker_asset_data: '0x18590000000000000000000000000000', // u22808
+      maximum_fill: 50,
+      expiration_height: 100,
+      extra_data: '0x',
       salt: 2,
     });
 
-    // yarn generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 2, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": \"0x47590000000000000000000000000000\", \"taker-asset-data\": \"0x01000000000000000000000000000000\", \"maximum-fill\": 100, \"expiration-height\": 100, \"extra-data\": \"0x\", \"salt\": 1 }"
-    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0x4807ed4648e133336ad7e58341c8017e839d64b6a608373b35ce0653fc246e73
+    // yarn generate-order-hash "{ \"sender\": 1, \"sender_fee\": 1e8, \"maker\": 2, \"maker_asset\": 1, \"taker_asset\": 2, \"maker_asset_data\": \"0x47590000000000000000000000000000\", \"taker_asset_data\": \"0x01000000000000000000000000000000\", \"maximum_fill\": 100, \"expiration_height\": 100, \"extra_data\": \"0x\", \"salt\": 1 }"
+    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0x42f2464fdb62f07a19f2db2aa39a1eccd6e293dbda3156a9f3e5c2cc2d61f1f1
     const left_signature =
-      '0x0e7d0d31bcca94dcb32dde37aef0cba39913bd71c3848425562482c3194d66d9588ef3fe38a95e3c580205059bbf1cef54468543bf9f5f6b367926e9198dc99100';
-    // yarn generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 3, \"maker-asset\": 2, \"taker-asset\": 1, \"maker-asset-data\": \"0x01000000000000000000000000000000\", \"taker-asset-data\": \"0x18590000000000000000000000000000\", \"maximum-fill\": 50, \"expiration-height\": 100, \"extra-data\": \"0x\", \"salt\": 2 }"
-    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0x18e62e3eb39f3d33ea15b6c7e208e226c83f653bf760fcba8f65a76fa00bf8f2
+      '0xcd96ab12f5ceb8bd94a803f1959dd6730e22eab9c316bd2f1749b11451b140913a70d4cc3fbe124b522c93e02379220898aa1fde1509f2f6222467d6d71544b300';
+    // yarn generate-order-hash "{ \"sender\": 1, \"sender_fee\": 1e8, \"maker\": 3, \"maker_asset\": 2, \"taker_asset\": 1, \"maker_asset_data\": \"0x01000000000000000000000000000000\", \"taker_asset_data\": \"0x18590000000000000000000000000000\", \"maximum_fill\": 50, \"expiration_height\": 100, \"extra_data\": \"0x\", \"salt\": 2 }"
+    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0x9ec498ed5fe7987f825e47f60c0e36abceef632c423e09cfa94c54b061f5eacf
     const right_signature =
-      '0x0af7e7842184ef68b826db52f70395c93a4ae1b353784372229a0b05e544ccf24bb38e9e2532dac7a057b94c6b3ee0c2e718ea4b27b128895a7ff4a08dcff3ee01';
+      '0x61dfd4ca3338fa48a106333717af2ec8712d9a174584019db570775e6b31ce701e7ae37cdde19a873062d3913b8b047dda50b0386a9a7ebef76498130fb25cca00';
 
     const block = chain.mineBlock([
       Tx.contractCall(

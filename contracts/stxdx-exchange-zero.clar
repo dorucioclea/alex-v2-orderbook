@@ -180,7 +180,7 @@
 			(order-fills (contract-call? .stxdx-registry get-two-order-fills left-order-hash right-order-hash))
 			(left-order-fill (get order-1 order-fills))
 			(right-order-fill (get order-2 order-fills))
-			(fillable (min (- (get maximum-fill left-order) left-order-fill) (- (get maximum-fill right-order) right-order-fill)))
+			(fillable (min (- (get maximum_fill left-order) left-order-fill) (- (get maximum_fill right-order) right-order-fill)))
 			(left-maker-asset-amount (try! (asset-data-to-uint (get maker_asset_data left-order))))
 			(left-taker-asset-amount (try! (asset-data-to-uint (get taker_asset_data left-order))))
 			(right-maker-asset-amount (try! (asset-data-to-uint (get maker_asset_data right-order))))
