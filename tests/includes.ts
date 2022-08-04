@@ -35,15 +35,15 @@ const buff = (input: string | ArrayBuffer) =>
 export function orderToTupleCV(order: { [key: string]: any }) {
   const expected_struct: { [key: string]: Function } = {
     sender: uintCV,
-    'sender-fee': uintCV,
+    sender_fee: uintCV,
     maker: uintCV,
-    'maker-asset': uintCV,
-    'taker-asset': uintCV,
-    'maker-asset-data': buff,
-    'taker-asset-data': buff,
-    'maximum-fill': uintCV,
-    'expiration-height': uintCV,
-    'extra-data': buff,
+    maker_asset: uintCV,
+    taker_asset: uintCV,
+    maker_asset_data: buff,
+    taker_asset_data: buff,
+    maximum_fill: uintCV,
+    expiration_height: uintCV,
+    extra_data: buff,
     salt: uintCV,
   };
   const orderTuple: { [key: string]: any } = {};
