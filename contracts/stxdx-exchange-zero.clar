@@ -20,7 +20,6 @@
 (define-constant err-sender-fee-payment-failed (err u5007))
 (define-constant err-asset-contract-call-failed (err u5008))
 
-(define-constant ONE_8 u100000000)
 (define-constant structured-data-prefix 0x534950303138)
 
 (define-data-var contract-owner principal tx-sender)
@@ -66,15 +65,15 @@
 )
 
 (define-constant serialized-key-sender (serialize-tuple-key "sender"))
-(define-constant serialized-key-sender-fee (serialize-tuple-key "sender_fee"))
+(define-constant serialized-key-sender-fee (serialize-tuple-key "sender-fee"))
 (define-constant serialized-key-maker (serialize-tuple-key "maker"))
-(define-constant serialized-key-maker-asset (serialize-tuple-key "maker_asset"))
-(define-constant serialized-key-taker-asset (serialize-tuple-key "taker_asset"))
-(define-constant serialized-key-maker-asset-data (serialize-tuple-key "maker_asset_data"))
-(define-constant serialized-key-taker-asset-data (serialize-tuple-key "taker_asset_data"))
-(define-constant serialized-key-maximum-fill (serialize-tuple-key "maximum_fill"))
-(define-constant serialized-key-expiration-height (serialize-tuple-key "expiration_height"))
-(define-constant serialized-key-extra-data (serialize-tuple-key "extra_data"))
+(define-constant serialized-key-maker-asset (serialize-tuple-key "maker-asset"))
+(define-constant serialized-key-taker-asset (serialize-tuple-key "taker-asset"))
+(define-constant serialized-key-maker-asset-data (serialize-tuple-key "maker-asset-data"))
+(define-constant serialized-key-taker-asset-data (serialize-tuple-key "taker-asset-data"))
+(define-constant serialized-key-maximum-fill (serialize-tuple-key "maximum-fill"))
+(define-constant serialized-key-expiration-height (serialize-tuple-key "expiration-height"))
+(define-constant serialized-key-extra-data (serialize-tuple-key "extra-data"))
 (define-constant serialized-key-salt (serialize-tuple-key "salt"))
 (define-constant serialized-order-header (concat type-id-tuple (uint32-to-buff-be u11)))
 
@@ -82,15 +81,15 @@
 	(order
 		{
 		sender: uint,
-		sender_fee: uint,
+		sender-fee: uint,
 		maker: uint,
-		maker_asset: uint,
-		taker_asset: uint,
-		maker_asset_data: (buff 256),
-		taker_asset_data: (buff 256),
-		maximum_fill: uint,
-		expiration_height: uint,
-		extra_data: (buff 256),
+		maker-asset: uint,
+		taker-asset: uint,
+		maker-asset-data: (buff 256),
+		taker-asset-data: (buff 256),
+		maximum-fill: uint,
+		expiration-height: uint,
+		extra-data: (buff 256),
 		salt: uint
 		}
 	)
@@ -99,22 +98,22 @@
 		(concat serialized-order-header
 
 		(concat serialized-key-expiration-height
-		(concat (serialize-uint (get expiration_height order))
+		(concat (serialize-uint (get expiration-height order))
 
 		(concat serialized-key-extra-data
-		(concat (serialize-buff (get extra_data order))
+		(concat (serialize-buff (get extra-data order))
 
 		(concat serialized-key-maker
 		(concat (serialize-uint (get maker order))
 
 		(concat serialized-key-maker-asset
-		(concat (serialize-uint (get maker_asset order))
+		(concat (serialize-uint (get maker-asset order))
 
 		(concat serialized-key-maker-asset-data
-		(concat (serialize-buff (get maker_asset_data order))
+		(concat (serialize-buff (get maker-asset-data order))
 
 		(concat serialized-key-maximum-fill
-		(concat (serialize-uint (get maximum_fill order))
+		(concat (serialize-uint (get maximum-fill order))
 
 		(concat serialized-key-salt
 		(concat (serialize-uint (get salt order))
@@ -123,13 +122,13 @@
 		(concat (serialize-uint (get sender order))
 
 		(concat serialized-key-sender-fee
-		(concat (serialize-uint (get sender_fee order))
+		(concat (serialize-uint (get sender-fee order))
 		
 		(concat serialized-key-taker-asset
-		(concat (serialize-uint (get taker_asset order))
+		(concat (serialize-uint (get taker-asset order))
 
 		(concat serialized-key-taker-asset-data
-				(serialize-buff (get taker_asset_data order))		
+				(serialize-buff (get taker-asset-data order))		
 
 		))))))))))))))))))))))
 	)
@@ -139,30 +138,30 @@
 	(left-order
 		{
 		sender: uint,
-		sender_fee: uint,
+		sender-fee: uint,
 		maker: uint,
-		maker_asset: uint,
-		taker_asset: uint,
-		maker_asset_data: (buff 256),
-		taker_asset_data: (buff 256),
-		maximum_fill: uint,
-		expiration_height: uint,
-		extra_data: (buff 256),
+		maker-asset: uint,
+		taker-asset: uint,
+		maker-asset-data: (buff 256),
+		taker-asset-data: (buff 256),
+		maximum-fill: uint,
+		expiration-height: uint,
+		extra-data: (buff 256),
 		salt: uint
 		}
 	)
 	(right-order
 		{
 		sender: uint,
-		sender_fee: uint,
+		sender-fee: uint,
 		maker: uint,
-		maker_asset: uint,
-		taker_asset: uint,
-		maker_asset_data: (buff 256),
-		taker_asset_data: (buff 256),
-		maximum_fill: uint,
-		expiration_height: uint,
-		extra_data: (buff 256),
+		maker-asset: uint,
+		taker-asset: uint,
+		maker-asset-data: (buff 256),
+		taker-asset-data: (buff 256),
+		maximum-fill: uint,
+		expiration-height: uint,
+		extra-data: (buff 256),
 		salt: uint
 		}
 	)
@@ -180,19 +179,19 @@
 			(order-fills (contract-call? .stxdx-registry get-two-order-fills left-order-hash right-order-hash))
 			(left-order-fill (get order-1 order-fills))
 			(right-order-fill (get order-2 order-fills))
-			(fillable (min (- (get maximum_fill left-order) left-order-fill) (- (get maximum_fill right-order) right-order-fill)))
-			(left-maker-asset-amount (try! (asset-data-to-uint (get maker_asset_data left-order))))
-			(left-taker-asset-amount (try! (asset-data-to-uint (get taker_asset_data left-order))))
-			(right-maker-asset-amount (try! (asset-data-to-uint (get maker_asset_data right-order))))
-			(right-taker-asset-amount (try! (asset-data-to-uint (get taker_asset_data right-order))))
+			(fillable (min (- (get maximum-fill left-order) left-order-fill) (- (get maximum-fill right-order) right-order-fill)))
+			(left-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data left-order))))
+			(left-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data left-order))))
+			(right-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data right-order))))
+			(right-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data right-order))))
 			(left-order-make (min left-maker-asset-amount right-taker-asset-amount))
 			(right-order-make (min left-taker-asset-amount right-maker-asset-amount))
 		)
 		(try! (is-authorised-sender))		
-		(asserts! (is-eq (get maker_asset left-order) (get taker_asset right-order)) err-maker-asset-mismatch)
-		(asserts! (is-eq (get taker_asset left-order) (get maker_asset right-order)) err-taker-asset-mismatch)
+		(asserts! (is-eq (get maker-asset left-order) (get taker-asset right-order)) err-maker-asset-mismatch)
+		(asserts! (is-eq (get taker-asset left-order) (get maker-asset right-order)) err-taker-asset-mismatch)
 		;; one side matches and the taker of the other side is smaller than maker.
-		;; so that maker gives at most maker_asset_data, and taker takes at least taker_asset_data
+		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
 		(asserts! 
 			(or 
 				(and 
@@ -206,8 +205,8 @@
 			)
 			err-asset-data-mismatch
 		)
-		(asserts! (< block-height (get expiration_height left-order)) err-left-order-expired)
-		(asserts! (< block-height (get expiration_height right-order)) err-right-order-expired)
+		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
+		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)
 		(match fill
 			value
 			(asserts! (>= fillable value) err-maximum-fill-reached)
@@ -233,15 +232,15 @@
 	(order
 		{
 		sender: uint,
-		sender_fee: uint,
+		sender-fee: uint,
 		maker: uint,
-		maker_asset: uint,
-		taker_asset: uint,
-		maker_asset_data: (buff 256),
-		taker_asset_data: (buff 256),
-		maximum_fill: uint,
-		expiration_height: uint,
-		extra_data: (buff 256),
+		maker-asset: uint,
+		taker-asset: uint,
+		maker-asset-data: (buff 256),
+		taker-asset-data: (buff 256),
+		maximum-fill: uint,
+		expiration-height: uint,
+		extra-data: (buff 256),
 		salt: uint
 		}
 	)
@@ -260,15 +259,15 @@
 	(order
 		{
 		sender: uint,
-		sender_fee: uint,
+		sender-fee: uint,
 		maker: uint,
-		maker_asset: uint,
-		taker_asset: uint,
-		maker_asset_data: (buff 256),
-		taker_asset_data: (buff 256),
-		maximum_fill: uint,
-		expiration_height: uint,
-		extra_data: (buff 256),
+		maker-asset: uint,
+		taker-asset: uint,
+		maker-asset-data: (buff 256),
+		taker-asset-data: (buff 256),
+		maximum-fill: uint,
+		expiration-height: uint,
+		extra-data: (buff 256),
 		salt: uint
 		}
 	)
@@ -276,10 +275,10 @@
 	(taker uint)
 	)
 	(begin
-		(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer amount (get maker order) taker (get maker_asset order)) err-asset-contract-call-failed))
+		(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer amount (get maker order) taker (get maker-asset order)) err-asset-contract-call-failed))
 		(and
-			(> (get sender_fee order) u0)
-			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer (get sender_fee order) (get maker order) (get sender order) u1) err-sender-fee-payment-failed))
+			(> (get sender-fee order) u0)
+			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer (get sender-fee order) (get maker order) (get sender order) u1) err-sender-fee-payment-failed))
 		)
 		(ok true)
 	)
@@ -289,30 +288,30 @@
 	(left-order
 		{
 		sender: uint,
-		sender_fee: uint,
+		sender-fee: uint,
 		maker: uint,
-		maker_asset: uint,
-		taker_asset: uint,
-		maker_asset_data: (buff 256),
-		taker_asset_data: (buff 256),
-		maximum_fill: uint,
-		expiration_height: uint,
-		extra_data: (buff 256),
+		maker-asset: uint,
+		taker-asset: uint,
+		maker-asset-data: (buff 256),
+		taker-asset-data: (buff 256),
+		maximum-fill: uint,
+		expiration-height: uint,
+		extra-data: (buff 256),
 		salt: uint
 		}
 	)
 	(right-order
 		{
 		sender: uint,
-		sender_fee: uint,
+		sender-fee: uint,
 		maker: uint,
-		maker_asset: uint,
-		taker_asset: uint,
-		maker_asset_data: (buff 256),
-		taker_asset_data: (buff 256),
-		maximum_fill: uint,
-		expiration_height: uint,
-		extra_data: (buff 256),
+		maker-asset: uint,
+		taker-asset: uint,
+		maker-asset-data: (buff 256),
+		taker-asset-data: (buff 256),
+		maximum-fill: uint,
+		expiration-height: uint,
+		extra-data: (buff 256),
 		salt: uint
 		}
 	)

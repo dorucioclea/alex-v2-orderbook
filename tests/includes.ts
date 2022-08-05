@@ -35,15 +35,15 @@ const buff = (input: string | ArrayBuffer) =>
 export function orderToTupleCV(order: { [key: string]: any }) {
   const expected_struct: { [key: string]: Function } = {
     sender: uintCV,
-    sender_fee: uintCV,
+    'sender-fee': uintCV,
     maker: uintCV,
-    maker_asset: uintCV,
-    taker_asset: uintCV,
-    maker_asset_data: buff,
-    taker_asset_data: buff,
-    maximum_fill: uintCV,
-    expiration_height: uintCV,
-    extra_data: buff,
+    'maker-asset': uintCV,
+    'taker-asset': uintCV,
+    'maker-asset-data': buff,
+    'taker-asset-data': buff,
+    'maximum-fill': uintCV,
+    'expiration-height': uintCV,
+    'extra-data': buff,
     salt: uintCV,
   };
   const orderTuple: { [key: string]: any } = {};
@@ -83,67 +83,67 @@ export function prepareChainBasicTest(
       deployer.address,
     ),
     Tx.contractCall(
-      'stxdx-exchange-zero',
+      contractNames.exchange,
       'set-authorised-sender',
       [types.bool(true), '.stxdx-sender-proxy'],
       deployer.address,
     ),
     Tx.contractCall(
-      'stxdx-exchange-zero',
+      contractNames.exchange,
       'set-authorised-sender',
       [types.bool(true), types.principal(wallet_1.address)],
       deployer.address,
     ),
     Tx.contractCall(
-      'stxdx-sender-proxy',
+      contractNames.sender_proxy,
       'set-authorised-sender',
       [types.bool(true), types.principal(wallet_1.address)],
       deployer.address,
     ),
     Tx.contractCall(
-      'stxdx-wallet-zero',
+      contractNames.wallet,
       'approve-exchange',
       ['.stxdx-exchange-zero', types.bool(true)],
       deployer.address,
     ),
     Tx.contractCall(
-      'stxdx-registry',
+      contractNames.registry,
       'approve-exchange',
       ['.stxdx-exchange-zero', types.bool(true)],
       deployer.address,
     ),
     Tx.contractCall(
-      'stxdx-registry',
+      contractNames.registry,
       'register-asset',
       ['.token-wstx'],
       deployer.address,
     ),
     Tx.contractCall(
-      'stxdx-registry',
+      contractNames.registry,
       'register-asset',
       ['.age000-governance-token'],
       deployer.address,
     ),
     Tx.contractCall(
-      'stxdx-registry',
+      contractNames.registry,
       'register-user',
       [buff(wallet_1_pubkey)],
       wallet_1.address,
     ),
     Tx.contractCall(
-      'stxdx-registry',
+      contractNames.registry,
       'register-user',
       [buff(wallet_2_pubkey)],
       wallet_2.address,
     ),
     Tx.contractCall(
-      'stxdx-registry',
+      contractNames.registry,
       'register-user',
       [buff(wallet_3_pubkey)],
       wallet_3.address,
     ),
     Tx.contractCall(
-      'stxdx-wallet-zero',
+      contractNames.wallet,
       'transfer-in',
       [
         types.uint(10000e8),
@@ -154,7 +154,7 @@ export function prepareChainBasicTest(
       wallet_2.address,
     ),
     Tx.contractCall(
-      'stxdx-wallet-zero',
+      contractNames.wallet,
       'transfer-in',
       [
         types.uint(10000e8),
@@ -165,7 +165,7 @@ export function prepareChainBasicTest(
       wallet_3.address,
     ),
     Tx.contractCall(
-      'stxdx-wallet-zero',
+      contractNames.wallet,
       'transfer-in',
       [
         types.uint(10000e8),
@@ -176,7 +176,7 @@ export function prepareChainBasicTest(
       wallet_2.address,
     ),
     Tx.contractCall(
-      'stxdx-wallet-zero',
+      contractNames.wallet,
       'transfer-in',
       [
         types.uint(10000e8),
