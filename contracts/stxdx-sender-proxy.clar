@@ -35,8 +35,8 @@
 )
 
 (define-public (match-orders
-	(left-order {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint})
-	(right-order {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint})
+	(left-order {sender: uint, sender_fee: uint, maker: uint, maker_asset: uint, taker_asset: uint, maker_asset_data: (buff 256), taker_asset_data: (buff 256), maximum_fill: uint, expiration_height: uint, extra_data: (buff 256), salt: uint})
+	(right-order {sender: uint, sender_fee: uint, maker: uint, maker_asset: uint, taker_asset: uint, maker_asset_data: (buff 256), taker_asset_data: (buff 256), maximum_fill: uint, expiration_height: uint, extra_data: (buff 256), salt: uint})
 	(left-signature (buff 65))
 	(right-signature (buff 65))
 	(fill (optional uint)))
@@ -49,8 +49,8 @@
 (define-private (match-orders-iter 
 	(matched-orders
 		{
-			left-order: {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint},
-			right-order: {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint},
+			left-order: {sender: uint, sender_fee: uint, maker: uint, maker_asset: uint, taker_asset: uint, maker_asset_data: (buff 256), taker_asset_data: (buff 256), maximum_fill: uint, expiration_height: uint, extra_data: (buff 256), salt: uint},
+			right-order: {sender: uint, sender_fee: uint, maker: uint, maker_asset: uint, taker_asset: uint, maker_asset_data: (buff 256), taker_asset_data: (buff 256), maximum_fill: uint, expiration_height: uint, extra_data: (buff 256), salt: uint},
 			left-signature: (buff 65),
 			right-signature: (buff 65),
 			fill: (optional uint)
@@ -63,8 +63,8 @@
 	(matched-orders-list
 		(list 200 
 			{
-				left-order: {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint},
-				right-order: {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint},
+				left-order: {sender: uint, sender_fee: uint, maker: uint, maker_asset: uint, taker_asset: uint, maker_asset_data: (buff 256), taker_asset_data: (buff 256), maximum_fill: uint, expiration_height: uint, extra_data: (buff 256), salt: uint},
+				right-order: {sender: uint, sender_fee: uint, maker: uint, maker_asset: uint, taker_asset: uint, maker_asset_data: (buff 256), taker_asset_data: (buff 256), maximum_fill: uint, expiration_height: uint, extra_data: (buff 256), salt: uint},
 				left-signature: (buff 65),
 				right-signature: (buff 65),
 				fill: (optional uint)
