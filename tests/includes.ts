@@ -14,7 +14,7 @@ export { uintCV, principalCV, noneCV, someCV, tupleCV };
 const contractNames = {
   exchange: 'stxdx-exchange-zero',
   registry: 'stxdx-registry',
-  sender-proxy: 'stxdx-sender-proxy',
+  sender_proxy: 'stxdx-sender-proxy',
   wallet: 'stxdx-wallet-zero',
 };
 
@@ -33,7 +33,7 @@ const buff = (input: string | ArrayBuffer) =>
     : bufferCV(input);
 
 export function orderToTupleCV(order: { [key: string]: any }) {
-  const expected-struct: { [key: string]: Function } = {
+  const expected_struct: { [key: string]: Function } = {
     sender: uintCV,
     'sender-fee': uintCV,
     maker: uintCV,
@@ -47,7 +47,7 @@ export function orderToTupleCV(order: { [key: string]: any }) {
     salt: uintCV,
   };
   const orderTuple: { [key: string]: any } = {};
-  for (const [key, func] of Object.entries(expected-struct))
+  for (const [key, func] of Object.entries(expected_struct))
     if (key in order) orderTuple[key] = func(order[key]);
     else throw new Error(`Order object missing '${key}' field`);
   return tupleCV(orderTuple);
@@ -58,92 +58,92 @@ export function prepareChainBasicTest(
   accounts: Map<string, Account>,
 ) {
   const deployer = accounts.get('deployer')!;
-  const wallet-1 = accounts.get('wallet-1')!; //sender
-  const wallet-2 = accounts.get('wallet-2')!; //user 1
-  const wallet-3 = accounts.get('wallet-3')!; //user 2
+  const wallet_1 = accounts.get('wallet_1')!; //sender
+  const wallet_2 = accounts.get('wallet_2')!; //user 1
+  const wallet_3 = accounts.get('wallet_3')!; //user 2
 
-  const wallet-1-pubkey =
+  const wallet_1_pubkey =
     '03cd2cfdbd2ad9332828a7a13ef62cb999e063421c708e863a7ffed71fb61c88c9';
-  const wallet-2-pubkey =
+  const wallet_2_pubkey =
     '021843d01fa0bb9a3495fd2caf92505a81055dbe1fd545880fd40c3a1c7fd9c40a';
-  const wallet-3-pubkey =
+  const wallet_3_pubkey =
     '02c4b5eacb71a27be633ed970dcbc41c00440364bc04ba38ae4683ac24e708bf33';
 
   return chain.mineBlock([
     Tx.contractCall(
       'age000-governance-token',
       'mint-fixed',
-      [types.uint(10000e8), types.principal(wallet-2.address)],
+      [types.uint(10000e8), types.principal(wallet_2.address)],
       deployer.address,
     ),
     Tx.contractCall(
       'age000-governance-token',
       'mint-fixed',
-      [types.uint(10000e8), types.principal(wallet-3.address)],
+      [types.uint(10000e8), types.principal(wallet_3.address)],
       deployer.address,
     ),
     Tx.contractCall(
-      'stxdx-exchange-zero',
+      contractNames.exchange,
       'set-authorised-sender',
       [types.bool(true), '.stxdx-sender-proxy'],
       deployer.address,
     ),
     Tx.contractCall(
-      'stxdx-exchange-zero',
+      contractNames.exchange,
       'set-authorised-sender',
-      [types.bool(true), types.principal(wallet-1.address)],
+      [types.bool(true), types.principal(wallet_1.address)],
       deployer.address,
     ),
     Tx.contractCall(
-      'stxdx-sender-proxy',
+      contractNames.sender_proxy,
       'set-authorised-sender',
-      [types.bool(true), types.principal(wallet-1.address)],
+      [types.bool(true), types.principal(wallet_1.address)],
       deployer.address,
     ),
     Tx.contractCall(
-      'stxdx-wallet-zero',
+      contractNames.wallet,
       'approve-exchange',
       ['.stxdx-exchange-zero', types.bool(true)],
       deployer.address,
     ),
     Tx.contractCall(
-      'stxdx-registry',
+      contractNames.registry,
       'approve-exchange',
       ['.stxdx-exchange-zero', types.bool(true)],
       deployer.address,
     ),
     Tx.contractCall(
-      'stxdx-registry',
+      contractNames.registry,
       'register-asset',
       ['.token-wstx'],
       deployer.address,
     ),
     Tx.contractCall(
-      'stxdx-registry',
+      contractNames.registry,
       'register-asset',
       ['.age000-governance-token'],
       deployer.address,
     ),
     Tx.contractCall(
-      'stxdx-registry',
+      contractNames.registry,
       'register-user',
-      [buff(wallet-1-pubkey)],
-      wallet-1.address,
+      [buff(wallet_1_pubkey)],
+      wallet_1.address,
     ),
     Tx.contractCall(
-      'stxdx-registry',
+      contractNames.registry,
       'register-user',
-      [buff(wallet-2-pubkey)],
-      wallet-2.address,
+      [buff(wallet_2_pubkey)],
+      wallet_2.address,
     ),
     Tx.contractCall(
-      'stxdx-registry',
+      contractNames.registry,
       'register-user',
-      [buff(wallet-3-pubkey)],
-      wallet-3.address,
+      [buff(wallet_3_pubkey)],
+      wallet_3.address,
     ),
     Tx.contractCall(
-      'stxdx-wallet-zero',
+      contractNames.wallet,
       'transfer-in',
       [
         types.uint(10000e8),
@@ -151,10 +151,10 @@ export function prepareChainBasicTest(
         types.uint(1),
         types.principal(deployer.address + '.token-wstx'),
       ],
-      wallet-2.address,
+      wallet_2.address,
     ),
     Tx.contractCall(
-      'stxdx-wallet-zero',
+      contractNames.wallet,
       'transfer-in',
       [
         types.uint(10000e8),
@@ -162,10 +162,10 @@ export function prepareChainBasicTest(
         types.uint(1),
         types.principal(deployer.address + '.token-wstx'),
       ],
-      wallet-3.address,
+      wallet_3.address,
     ),
     Tx.contractCall(
-      'stxdx-wallet-zero',
+      contractNames.wallet,
       'transfer-in',
       [
         types.uint(10000e8),
@@ -173,10 +173,10 @@ export function prepareChainBasicTest(
         types.uint(2),
         types.principal(deployer.address + '.age000-governance-token'),
       ],
-      wallet-2.address,
+      wallet_2.address,
     ),
     Tx.contractCall(
-      'stxdx-wallet-zero',
+      contractNames.wallet,
       'transfer-in',
       [
         types.uint(10000e8),
@@ -184,7 +184,7 @@ export function prepareChainBasicTest(
         types.uint(2),
         types.principal(deployer.address + '.age000-governance-token'),
       ],
-      wallet-3.address,
+      wallet_3.address,
     ),
   ]);
 }

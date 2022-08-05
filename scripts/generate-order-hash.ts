@@ -34,7 +34,7 @@ function toBuffer(input: string) {
 }
 
 function orderToTupleCV(order: { [key: string]: any }) {
-  const expected-struct = {
+  const expected_struct = {
     'sender': uintCV,
     'sender-fee': uintCV,
     'maker': uintCV,
@@ -48,7 +48,7 @@ function orderToTupleCV(order: { [key: string]: any }) {
     'salt': uintCV,
   };
   const orderTuple: { [key: string]: any } = {};
-  for (const [key, func] of Object.entries(expected-struct))
+  for (const [key, func] of Object.entries(expected_struct))
     if (key in order) orderTuple[key] = func(order[key]);
     else throw new Error(`Order object missing '${key}' field`);
   return tupleCV(orderTuple);

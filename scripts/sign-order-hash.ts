@@ -58,16 +58,16 @@ function toBuffer(input: string) {
   );
 }
 
-const private-key = process.argv[2];
+const private_key = process.argv[2];
 const hash = process.argv[3];
 
-const stacksPrivateKey = createStacksPrivateKey(toBuffer(private-key));
+const stacksPrivateKey = createStacksPrivateKey(toBuffer(private_key));
 
-function signOrderHash(private-key: StacksPrivateKey, hash: Buffer) {
+function signOrderHash(private_key: StacksPrivateKey, hash: Buffer) {
   const message = createHash('sha256')
     .update(Buffer.concat([structuredDataPrefix, domainHash, hash]))
     .digest();
-  const data = signWithKey(private-key, message.toString('hex')).data;
+  const data = signWithKey(private_key, message.toString('hex')).data;
   return Buffer.from(data.slice(2) + data.slice(0, 2), 'hex');
 }
 
