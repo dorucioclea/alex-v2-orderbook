@@ -10,7 +10,7 @@ import {
 Clarinet.test({
   name: 'Wallet: can process transfer-out',
   fn(chain: Chain, accounts: Map<string, Account>) {
-    const sender = accounts.get('wallet_2')!;
+    const sender = accounts.get('wallet-2')!;
     const deployer = accounts.get('deployer')!;
 
     const results = prepareChainBasicTest(chain, accounts);
