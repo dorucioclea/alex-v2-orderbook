@@ -74,15 +74,3 @@
 	(ok (map match-orders-iter matched-orders-list))
 )
 
-(define-public (match-orders-loose
-	(left-order {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint})
-	(right-order {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint})
-	(left-signature (buff 65))
-	(right-signature (buff 65))
-	(fill (optional uint)))
-	(begin
-		(try! (is-authorised-sender))
-		(as-contract (contract-call? .stxdx-exchange-zero match-orders-loose left-order right-order left-signature right-signature fill))
-	)
-)
-

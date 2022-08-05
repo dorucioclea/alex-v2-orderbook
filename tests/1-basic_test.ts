@@ -106,21 +106,6 @@ Clarinet.test({
       'left-order-hash': left_order_hash,
       'right-order-fill': types.uint(0),
       'right-order-hash': right_order_hash,
-    });
-
-    response = chain.callReadOnlyFn(
-      contractNames.exchange,
-      'validate-match-loose',
-      [left_order, right_order, left_signature, right_signature, types.none()],
-      sender.address,
-    );
-    response_tuple = response.result.expectOk().expectTuple();
-    assertEquals(response_tuple, {
-      fillable: types.uint(50),
-      'left-order-fill': types.uint(0),
-      'left-order-hash': left_order_hash,
-      'right-order-fill': types.uint(0),
-      'right-order-hash': right_order_hash,
       'left-order-make': types.uint(14e8),
       'right-order-make': types.uint(1e8),
     });

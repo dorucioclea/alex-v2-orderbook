@@ -90,7 +90,10 @@ Clarinet.test({
         sender.address,
       ),
     ]);
-    block.receipts[0].result.expectOk().expectUint(50);
+    block.receipts[0].result
+      .expectOk()
+      .expectTuple()
+      ['fillable'].expectUint(50);
     // console.log(block.receipts[0].events);
   },
 });
@@ -154,21 +157,8 @@ Clarinet.test({
         ],
         sender.address,
       ),
-      Tx.contractCall(
-        contractNames.sender_proxy,
-        'match-orders-loose',
-        [
-          left_order,
-          right_order,
-          left_signature,
-          right_signature,
-          types.none(),
-        ],
-        sender.address,
-      ),
     ]);
-    block.receipts[0].result.expectErr().expectUint(3003);
-    block.receipts[1].result
+    block.receipts[0].result
       .expectOk()
       .expectTuple()
       ['left-order-make'].expectUint(22808);

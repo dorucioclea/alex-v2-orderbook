@@ -180,79 +180,6 @@
 			(left-order-fill (get order-1 order-fills))
 			(right-order-fill (get order-2 order-fills))
 			(fillable (min (- (get maximum-fill left-order) left-order-fill) (- (get maximum-fill right-order) right-order-fill)))
-		)
-		(try! (is-authorised-sender))		
-		(asserts! (is-eq (get maker-asset left-order) (get taker-asset right-order)) err-maker-asset-mismatch)
-		(asserts! (is-eq (get taker-asset left-order) (get maker-asset right-order)) err-taker-asset-mismatch)
-		(asserts! (is-eq (get maker-asset-data left-order) (get taker-asset-data right-order)) err-asset-data-mismatch)
-		(asserts! (is-eq (get taker-asset-data left-order) (get maker-asset-data right-order)) err-asset-data-mismatch)
-		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
-		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)
-		(match fill
-			value
-			(asserts! (>= fillable value) err-maximum-fill-reached)
-			(asserts! (> fillable u0) err-maximum-fill-reached)
-		)			
-		(asserts! (validate-authorisation left-order-fill (get maker left-user) (get maker-pubkey left-user) left-order-hash left-signature) err-left-authorisation-failed)
-		(asserts! (validate-authorisation right-order-fill (get maker right-user) (get maker-pubkey right-user) right-order-hash right-signature) err-right-authorisation-failed)
-		(ok
-			{
-			left-order-hash: left-order-hash,
-			right-order-hash: right-order-hash,
-			left-order-fill: left-order-fill,
-			right-order-fill: right-order-fill,
-			fillable: fillable
-			}
-		)
-	)
-)
-
-(define-read-only (validate-match-loose
-	(left-order
-		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
-	)
-	(right-order
-		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
-	)
-	(left-signature (buff 65))
-	(right-signature (buff 65))
-	(fill (optional uint))
-	)
-	(let
-		(
-			(users (try! (contract-call? .stxdx-registry get-two-users-from-id-or-fail (get maker left-order) (get maker right-order))))
-			(left-user (get user-1 users))
-			(right-user (get user-2 users))
-			(left-order-hash (hash-order left-order))
-			(right-order-hash (hash-order right-order))
-			(order-fills (contract-call? .stxdx-registry get-two-order-fills left-order-hash right-order-hash))
-			(left-order-fill (get order-1 order-fills))
-			(right-order-fill (get order-2 order-fills))
-			(fillable (min (- (get maximum-fill left-order) left-order-fill) (- (get maximum-fill right-order) right-order-fill)))
 			(left-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data left-order))))
 			(left-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data left-order))))
 			(right-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data right-order))))
@@ -395,53 +322,6 @@
 	(let
 		(
 			(validation-data (try! (validate-match left-order right-order left-signature right-signature fill)))
-			(fillable (match fill value value (get fillable validation-data)))
-		)
-		(try! (settle-order left-order (* fillable (try! (asset-data-to-uint (get maker-asset-data left-order)))) (get maker right-order)))
-		(try! (settle-order right-order (* fillable (try! (asset-data-to-uint (get maker-asset-data right-order)))) (get maker left-order)))
-		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))
-		(ok fillable)
-	)
-)
-
-(define-public (match-orders-loose
-	(left-order
-		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
-	)
-	(right-order
-		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
-	)
-	(left-signature (buff 65))
-	(right-signature (buff 65))
-	(fill (optional uint))
-	)
-	(let
-		(
-			(validation-data (try! (validate-match-loose left-order right-order left-signature right-signature fill)))
 			(fillable (match fill value value (get fillable validation-data)))
 			(left-order-make (get left-order-make validation-data))
 			(right-order-make (get right-order-make validation-data))
