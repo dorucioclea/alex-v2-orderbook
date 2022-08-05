@@ -5,6 +5,7 @@ import {
   prepareChainBasicTest,
   Tx,
   types,
+  contractNames
 } from './includes.ts';
 
 Clarinet.test({
@@ -20,7 +21,7 @@ Clarinet.test({
 
     let block = chain.mineBlock([
       Tx.contractCall(
-        'stxdx-wallet-zero',
+        contractNames.wallet,
         'request-transfer-out',
         [
           types.uint(1e8),
@@ -35,7 +36,7 @@ Clarinet.test({
 
     block = chain.mineBlock([
       Tx.contractCall(
-        'stxdx-wallet-zero',
+        contractNames.wallet,
         'transfer-out',
         [types.uint(1), types.principal(deployer.address + '.token-wstx')],
         sender.address,
@@ -44,7 +45,7 @@ Clarinet.test({
     block.receipts[0].result.expectErr().expectUint(6003);
 
     const call: any = chain.callReadOnlyFn(
-      'stxdx-wallet-zero',
+      contractNames.wallet,
       'get-request-or-fail',
       [types.uint(1)],
       sender.address,
@@ -56,7 +57,7 @@ Clarinet.test({
 
     block = chain.mineBlock([
       Tx.contractCall(
-        'stxdx-wallet-zero',
+        contractNames.wallet,
         'transfer-out',
         [types.uint(1), types.principal(deployer.address + '.token-wstx')],
         sender.address,
