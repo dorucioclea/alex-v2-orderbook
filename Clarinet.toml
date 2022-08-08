@@ -24,6 +24,10 @@ depends_on = ["trait-ownable", "trait-sip-010", "stxdx-wallet-zero"]
 path = "contracts/stxdx-utils.clar"
 depends_on = []
 
+[contracts.stxdx-faucet]
+path = "contracts/stxdx-faucet.clar"
+depends_on = []
+
 [contracts.stxdx-wallet-zero]
 path = "contracts/stxdx-wallet-zero.clar"
 depends_on = ["trait-sip-010", "trait-ownable", "stxdx-registry"]
