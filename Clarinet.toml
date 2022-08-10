@@ -26,7 +26,7 @@ depends_on = []
 
 [contracts.stxdx-faucet]
 path = "contracts/stxdx-faucet.clar"
-depends_on = []
+depends_on = ["token-xusd", "token-wbtc", "token-apower", "age000-governance-token"]
 
 [contracts.stxdx-wallet-zero]
 path = "contracts/stxdx-wallet-zero.clar"
