@@ -14,5 +14,7 @@
 	(recipient-list
 		(list 299 principal)
 	))
-	(ok (map faucet-one recipient-list))
+	(begin
+    (map faucet-one recipient-list)
+    (ok u0))
 )
