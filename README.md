@@ -4,7 +4,7 @@ The first version of ALEX Orderbook, an order matching protocol for peer to peer
 
 The protocol only facilitates order matching, which means that the actual order generation and order books are managed off-chain. Users will first deploy a wallet contract and deposit their digital assets into it. They then sign order structs in order to trade.
 
-*More information to follow.*
+_More information to follow._
 
 ## Setup
 
@@ -17,16 +17,19 @@ npm install
 ## Helper scripts
 
 **Generate an order hash from order JSON**
+
 ```bash
 npm run generate-order-hash "<order JSON>"
 ```
 
 **Convert a seed to a private key for testing**
+
 ```bash
 npm run seed-to-private-key "seed phrase"
 ```
 
 **Sign order hash using a private key**
+
 ```bash
 npm run sign-order-hash <private key> <order hash>
 ```
@@ -59,15 +62,15 @@ Orders pass the authorisation step if one of the following four conditions is me
 ```lisp
 	{
 	sender: uint,
-	sender-fee: uint,
+	sender_fee: uint,
 	maker: uint,
-	maker-asset: uint,
-	taker-asset: uint,
-	maker-asset-data: (buff 256),
-	taker-asset-data: (buff 256),
-	maximum-fill: uint,
-	expiration-height: uint,
-	extra-data: (buff 256),
+	maker_asset: uint,
+	taker_asset: uint,
+	maker_asset_data: (buff 256),
+	taker_asset_data: (buff 256),
+	maximum_fill: uint,
+	expiration_height: uint,
+	extra_data: (buff 256),
 	salt: uint
 	}
 ```

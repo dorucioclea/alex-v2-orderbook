@@ -93,19 +93,21 @@ Clarinet.test({
     const right_signature =
       '0x5ebb47614350f292ca7207cb138375ffd976f3ff29ef807147da97448a084d540af1f8b0ffbf9d15d92e1831fd6f9a702d32af027f857e09d533d07d8db875f800';
 
-    const response = chain.callReadOnlyFn(
+    let response = chain.callReadOnlyFn(
       contractNames.exchange,
       'validate-match',
       [left_order, right_order, left_signature, right_signature, types.none()],
       sender.address,
     );
-    const response_tuple = response.result.expectOk().expectTuple();
+    let response_tuple = response.result.expectOk().expectTuple();
     assertEquals(response_tuple, {
       fillable: types.uint(50),
       'left-order-fill': types.uint(0),
       'left-order-hash': left_order_hash,
       'right-order-fill': types.uint(0),
       'right-order-hash': right_order_hash,
+      'left-order-make': types.uint(14e8),
+      'right-order-make': types.uint(1e8),
     });
   },
 });
