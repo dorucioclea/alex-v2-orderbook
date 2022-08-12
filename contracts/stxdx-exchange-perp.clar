@@ -251,26 +251,6 @@
 	)
 )
 
-(define-private (approve-order-on-behalf
-	(order
-		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
-	)
-	)
-	(as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker order) (hash-order order)))
-)
-
 (define-private (asset-data-to-uint (asset-data (buff 256)))
 	(match (as-max-len? asset-data u16) bytes (ok (contract-call? .stxdx-utils buff-to-uint bytes)) err-asset-data-too-long)
 )
@@ -348,7 +328,9 @@
 		)
 		(try! (settle-order left-order (* fillable left-order-make) (get maker right-order)))
 		(try! (settle-order right-order (* fillable right-order-make) (get maker left-order)))
-		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))
+		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))		
+		(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker left-order) (unwrap-panic (as-max-len? (get extra-data left-order) u32)))))
+		(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker right-order) (unwrap-panic (as-max-len? (get extra-data right-order) u32)))))
 		(ok { fillable: fillable, left-order-make: left-order-make, right-order-make: right-order-make })
 	)
 )
