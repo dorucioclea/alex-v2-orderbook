@@ -12,6 +12,10 @@ costs_version = 2
 path = "contracts/stxdx-exchange-zero.clar"
 depends_on = ["stxdx-registry", "trait-ownable", "stxdx-utils", "stxdx-wallet-zero"]
 
+[contracts.stxdx-exchange-perp]
+path = "contracts/stxdx-exchange-perp.clar"
+depends_on = ["stxdx-registry", "trait-ownable", "stxdx-utils", "stxdx-wallet-zero"]
+
 [contracts.stxdx-registry]
 path = "contracts/stxdx-registry.clar"
 depends_on = ["trait-ownable"]
