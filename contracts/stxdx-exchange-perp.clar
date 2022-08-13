@@ -325,12 +325,20 @@
 			(fillable (match fill value value (get fillable validation-data)))
 			(left-order-make (get left-order-make validation-data))
 			(right-order-make (get right-order-make validation-data))
-		)
-		(try! (settle-order left-order (* fillable left-order-make) (get maker right-order)))
-		(try! (settle-order right-order (* fillable right-order-make) (get maker left-order)))
-		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))		
+		)		
+
+		;; TODO: child order needs to be updated with maximum-fill == fillable
+		;; each fill of parent order will create a new (approved) child order with maximum-fill == fillable
 		(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker left-order) (unwrap-panic (as-max-len? (get extra-data left-order) u32)))))
 		(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker right-order) (unwrap-panic (as-max-len? (get extra-data right-order) u32)))))
+
+		;; TODO: settle-order transfers appropriate margin to exchange
+		;; margin = fill * (maker-asset-data of parent order - taker-asset-data of child order)
+		;; this means margin is calculated in USD for long, and in Coin for short
+		(try! (settle-order left-order (* fillable left-order-make) (get maker right-order)))
+		(try! (settle-order right-order (* fillable right-order-make) (get maker left-order)))
+
+		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))				
 		(ok { fillable: fillable, left-order-make: left-order-make, right-order-make: right-order-make })
 	)
 )
