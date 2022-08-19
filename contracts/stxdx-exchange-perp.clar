@@ -137,32 +137,66 @@
 (define-read-only (validate-match
 	(left-order
 		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
+			parent:
+			{
+				sender: uint,
+				sender-fee: uint,
+				maker: uint,
+				maker-asset: uint,
+				taker-asset: uint,
+				maker-asset-data: (buff 256),
+				taker-asset-data: (buff 256),
+				maximum-fill: uint,
+				expiration-height: uint,
+				extra-data: (buff 256),
+				salt: uint
+			},
+			child:
+			{
+				sender: uint,
+				sender-fee: uint,
+				maker: uint,
+				maker-asset: uint,
+				taker-asset: uint,
+				maker-asset-data: (buff 256),
+				taker-asset-data: (buff 256),
+				maximum-fill: uint,
+				expiration-height: uint,
+				extra-data: (buff 256),
+				salt: uint
+			}
+		}			
 	)
 	(right-order
 		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
+			parent:
+			{
+				sender: uint,
+				sender-fee: uint,
+				maker: uint,
+				maker-asset: uint,
+				taker-asset: uint,
+				maker-asset-data: (buff 256),
+				taker-asset-data: (buff 256),
+				maximum-fill: uint,
+				expiration-height: uint,
+				extra-data: (buff 256),
+				salt: uint
+			},
+			child:
+			{
+				sender: uint,
+				sender-fee: uint,
+				maker: uint,
+				maker-asset: uint,
+				taker-asset: uint,
+				maker-asset-data: (buff 256),
+				taker-asset-data: (buff 256),
+				maximum-fill: uint,
+				expiration-height: uint,
+				extra-data: (buff 256),
+				salt: uint
+			}
 		}
 	)
 	(left-signature (buff 65))
@@ -171,6 +205,14 @@
 	)
 	(let
 		(
+			;; check below details of parent orders
+			;; between parent and child orders, check 
+			;; maker matches, 
+			;; maker-asset of parent == taker-asset of child,
+			;; taker-asset of parent == maker-asset of child
+			;; maximum-fill matches
+			;; expiration-height of child == infinity
+			;; extra-data of parent == hash of child 
 			(users (try! (contract-call? .stxdx-registry get-two-users-from-id-or-fail (get maker left-order) (get maker right-order))))
 			(left-user (get user-1 users))
 			(right-user (get user-2 users))
@@ -223,6 +265,8 @@
 			fillable: fillable,
 			left-order-make: left-order-make,
 			right-order-make: right-order-make
+			;; left-child-order-make
+			;; right-child-order-make
 			}
 		)
 	)
@@ -287,32 +331,66 @@
 (define-public (match-orders
 	(left-order
 		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
+			parent:
+			{
+				sender: uint,
+				sender-fee: uint,
+				maker: uint,
+				maker-asset: uint,
+				taker-asset: uint,
+				maker-asset-data: (buff 256),
+				taker-asset-data: (buff 256),
+				maximum-fill: uint,
+				expiration-height: uint,
+				extra-data: (buff 256),
+				salt: uint
+			},
+			child:
+			{
+				sender: uint,
+				sender-fee: uint,
+				maker: uint,
+				maker-asset: uint,
+				taker-asset: uint,
+				maker-asset-data: (buff 256),
+				taker-asset-data: (buff 256),
+				maximum-fill: uint,
+				expiration-height: uint,
+				extra-data: (buff 256),
+				salt: uint
+			}
+		}			
 	)
 	(right-order
 		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
+			parent:
+			{
+				sender: uint,
+				sender-fee: uint,
+				maker: uint,
+				maker-asset: uint,
+				taker-asset: uint,
+				maker-asset-data: (buff 256),
+				taker-asset-data: (buff 256),
+				maximum-fill: uint,
+				expiration-height: uint,
+				extra-data: (buff 256),
+				salt: uint
+			},
+			child:
+			{
+				sender: uint,
+				sender-fee: uint,
+				maker: uint,
+				maker-asset: uint,
+				taker-asset: uint,
+				maker-asset-data: (buff 256),
+				taker-asset-data: (buff 256),
+				maximum-fill: uint,
+				expiration-height: uint,
+				extra-data: (buff 256),
+				salt: uint
+			}
 		}
 	)
 	(left-signature (buff 65))
@@ -325,9 +403,10 @@
 			(fillable (match fill value value (get fillable validation-data)))
 			(left-order-make (get left-order-make validation-data))
 			(right-order-make (get right-order-make validation-data))
+			(exchange-uid (as-contract (try! (contract-call? get-user-id-or-fail tx-sender)))
 		)		
 
-		;; TODO: parent order has to be FOK, because 
+		;; NOTE to backend: parent order has to be FOK, because 
 		;; maximum-fill of child order has to be fixed (and the order hashed) when parent order is submitted, and
 		;; we cannot retrieve the original order tuple from the hashed child order to update its maximum-fill
 		(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker left-order) (unwrap-panic (as-max-len? (get extra-data left-order) u32)))))
@@ -339,11 +418,15 @@
 
 		;; TODO: how do we mark to market?
 		;; registry knows fill of each order hash (incl. parent and child orders)
+		;; (1) create an order that reverses the parent order (i.e. buy => sell, sell => buy)
 		;; mtm is equal to fill * (prevailing price (f(maker-asset-data, taker-asset-data)) - initial price).
 		;; when a user wants to unwind an executed order hash (i.e. position),
-		;; we can look up fill of that order hash and determine how much to settle  
-		(try! (settle-order left-order (* fillable left-order-make) (get maker right-order)))
-		(try! (settle-order right-order (* fillable right-order-make) (get maker left-order)))
+		;; we can look up fill of that order hash and determine how much to settle
+		;; it should also cancel the child order
+		(try! (settle-order left-order (* fillable left-order-make) exchange-uid))
+		(try! (settle-order right-order (* fillable right-order-make) exchange-uid))
+
+
 
 		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))				
 		(ok { fillable: fillable, left-order-make: left-order-make, right-order-make: right-order-make })
