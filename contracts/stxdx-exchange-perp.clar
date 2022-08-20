@@ -20,6 +20,8 @@
 (define-constant err-sender-fee-payment-failed (err u5007))
 (define-constant err-asset-contract-call-failed (err u5008))
 
+(define-constant err-to-be-defined (err u99999))
+
 (define-constant structured-data-prefix 0x534950303138)
 
 (define-data-var contract-owner principal tx-sender)
@@ -204,34 +206,45 @@
 	(fill (optional uint))
 	)
 	(let
-		(
-			;; check below details of parent orders
-			;; between parent and child orders, check 
-			;; maker matches, 
-			;; maker-asset of parent == taker-asset of child,
-			;; taker-asset of parent == maker-asset of child
-			;; maximum-fill matches
-			;; expiration-height of child == infinity
-			;; extra-data of parent == hash of child 
-			(users (try! (contract-call? .stxdx-registry get-two-users-from-id-or-fail (get maker left-order) (get maker right-order))))
+		(		
+			(left-parent (get parent left-order))
+			(left-child (get child left-order))
+			(right-parent (get parent right-order))
+			(right-child (get child right-order))
+			(users (try! (contract-call? .stxdx-registry get-two-users-from-id-or-fail (get maker left-parent) (get maker right-parent))))
 			(left-user (get user-1 users))
 			(right-user (get user-2 users))
-			(left-order-hash (hash-order left-order))
-			(right-order-hash (hash-order right-order))
+			(left-order-hash (hash-order left-parent))
+			(right-order-hash (hash-order right-parent))
 			(order-fills (contract-call? .stxdx-registry get-two-order-fills left-order-hash right-order-hash))
 			(left-order-fill (get order-1 order-fills))
 			(right-order-fill (get order-2 order-fills))
-			(fillable (min (- (get maximum-fill left-order) left-order-fill) (- (get maximum-fill right-order) right-order-fill)))
-			(left-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data left-order))))
-			(left-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data left-order))))
-			(right-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data right-order))))
-			(right-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data right-order))))
+			(fillable (min (- (get maximum-fill left-parent) left-order-fill) (- (get maximum-fill right-parent) right-order-fill)))
+			(left-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data left-parent))))
+			(left-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data left-parent))))
+			(right-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data right-parent))))
+			(right-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data right-parent))))
 			(left-order-make (min left-maker-asset-amount right-taker-asset-amount))
 			(right-order-make (min left-taker-asset-amount right-maker-asset-amount))
+			(left-child-hash (hash-order left-child))
+			(right-child-hash (hash-order right-child))
 		)
-		(try! (is-authorised-sender))		
-		(asserts! (is-eq (get maker-asset left-order) (get taker-asset right-order)) err-maker-asset-mismatch)
-		(asserts! (is-eq (get taker-asset left-order) (get maker-asset right-order)) err-taker-asset-mismatch)
+		(try! (is-authorised-sender))				
+		(asserts! (is-eq (get maker-asset left-parent) (get taker-asset right-parent)) err-maker-asset-mismatch)
+		(asserts! (is-eq (get taker-asset left-parent) (get maker-asset right-parent)) err-taker-asset-mismatch)
+		(asserts! (is-eq (get maker left-parent) (get maker left-child)) err-to-be-defined)
+		(asserts! (is-eq (get maker right-parent) (get maker right-child)) err-to-be-defined)
+		(asserts! (is-eq (get maker-asset left-parent) (get taker-asset left-child)) err-to-be-defined)
+		(asserts! (is-eq (get maker-asset right-parent) (get taker-asset right-child)) err-to-be-defined)
+		(asserts! (is-eq (get taker-asset left-parent) (get maker-asset left-child)) err-to-be-defined)
+		(asserts! (is-eq (get taker-asset right-parent) (get maker-asset right-child)) err-to-be-defined)
+		(asserts! (is-eq (get maximum-fill left-parent) (get maximum-fill left-child)) err-to-be-defined)
+		(asserts! (is-eq (get maximum-fill right-parent) (get maximum-fill right-child)) err-to-be-defined)
+		(asserts! (is-eq (get expiration-height left-child) u340282366920938463463374607431768211455) err-to-be-defined)
+		(asserts! (is-eq (get expiration-height right-child) u340282366920938463463374607431768211455) err-to-be-defined)
+		(asserts! (is-eq (get extra-data left-parent) left-child-hash) err-to-be-defined)
+		(asserts! (is-eq (get extra-data right-parent) right-child-hash) err-to-be-defined)
+		
 		;; one side matches and the taker of the other side is smaller than maker.
 		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
 		(asserts! 
@@ -247,8 +260,8 @@
 			)
 			err-asset-data-mismatch
 		)
-		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
-		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)
+		(asserts! (< block-height (get expiration-height left-parent)) err-left-order-expired)
+		(asserts! (< block-height (get expiration-height right-parent)) err-right-order-expired)
 		(match fill
 			value
 			(asserts! (>= fillable value) err-maximum-fill-reached)
@@ -265,8 +278,6 @@
 			fillable: fillable,
 			left-order-make: left-order-make,
 			right-order-make: right-order-make
-			;; left-child-order-make
-			;; right-child-order-make
 			}
 		)
 	)
@@ -401,20 +412,20 @@
 		(
 			(validation-data (try! (validate-match left-order right-order left-signature right-signature fill)))
 			(fillable (match fill value value (get fillable validation-data)))
-			(left-order-make (get left-order-make validation-data))
-			(right-order-make (get right-order-make validation-data))
-			(exchange-uid (as-contract (try! (contract-call? get-user-id-or-fail tx-sender)))
+			(left-parent-make (get left-order-make validation-data))
+			(right-parent-make (get right-order-make validation-data))
+			(left-child-take (try! (asset-data-to-uint (get taker-asset-data (get child left-order)))))
+			(right-child-take (try! (asset-data-to-uint (get taker-asset-data (get child right-order)))))
+			(left-margin (- left-parent-make left-child-take))
+			(right-margin (- right-parent-make right-child-take))
+			(exchange-uid (as-contract (try! (contract-call? .stxdx-registry get-user-id-or-fail tx-sender))))
 		)		
 
 		;; NOTE to backend: parent order has to be FOK, because 
 		;; maximum-fill of child order has to be fixed (and the order hashed) when parent order is submitted, and
 		;; we cannot retrieve the original order tuple from the hashed child order to update its maximum-fill
-		(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker left-order) (unwrap-panic (as-max-len? (get extra-data left-order) u32)))))
-		(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker right-order) (unwrap-panic (as-max-len? (get extra-data right-order) u32)))))
-
-		;; TODO: settle-order transfers appropriate margin to exchange
-		;; margin = fill * (maker-asset-data of parent order - taker-asset-data of child order)
-		;; this means margin is calculated in USD for long, and in Coin for short
+		(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker (get parent left-order)) (unwrap-panic (as-max-len? (get extra-data (get parent left-order)) u32)))))
+		(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker (get parent right-order)) (unwrap-panic (as-max-len? (get extra-data (get parent right-order)) u32)))))
 
 		;; TODO: how do we mark to market?
 		;; registry knows fill of each order hash (incl. parent and child orders)
@@ -423,13 +434,11 @@
 		;; when a user wants to unwind an executed order hash (i.e. position),
 		;; we can look up fill of that order hash and determine how much to settle
 		;; it should also cancel the child order
-		(try! (settle-order left-order (* fillable left-order-make) exchange-uid))
-		(try! (settle-order right-order (* fillable right-order-make) exchange-uid))
-
-
+		(try! (settle-order (get parent left-order) (* fillable left-margin) exchange-uid))
+		(try! (settle-order (get parent right-order) (* fillable right-margin) exchange-uid))
 
 		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))				
-		(ok { fillable: fillable, left-order-make: left-order-make, right-order-make: right-order-make })
+		(ok { fillable: fillable, left-order-make: left-parent-make, right-order-make: right-parent-make })
 	)
 )
 
