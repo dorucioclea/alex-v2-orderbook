@@ -232,6 +232,7 @@
 		(try! (is-authorised-sender))				
 		(asserts! (is-eq (get maker-asset left-parent) (get taker-asset right-parent)) err-maker-asset-mismatch)
 		(asserts! (is-eq (get taker-asset left-parent) (get maker-asset right-parent)) err-taker-asset-mismatch)
+		
 		(asserts! (is-eq (get maker left-parent) (get maker left-child)) err-to-be-defined)
 		(asserts! (is-eq (get maker right-parent) (get maker right-child)) err-to-be-defined)
 		(asserts! (is-eq (get maker-asset left-parent) (get taker-asset left-child)) err-to-be-defined)
