@@ -115,6 +115,17 @@
 	)
 )
 
+(define-public (request-transfer-out-many (user-id uint) (amounts (list 10 uint)) (asset-ids (list 10 uint)) (assets (list 10 principal)))
+	(ok 
+		(map request-transfer-out
+			amounts
+			(list user-id  user-id  user-id  user-id  user-id  user-id  user-id  user-id  user-id  user-id)
+			asset-ids
+			assets
+		)
+	)
+)
+
 (define-public (request-transfer-out (amount uint) (user-id uint) (asset-id uint) (asset principal))
 	(let 
 		(
