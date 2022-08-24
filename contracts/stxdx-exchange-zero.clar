@@ -190,8 +190,21 @@
 		(try! (is-authorised-sender))		
 		(asserts! (is-eq (get maker-asset left-order) (get taker-asset right-order)) err-maker-asset-mismatch)
 		(asserts! (is-eq (get taker-asset left-order) (get maker-asset right-order)) err-taker-asset-mismatch)
-		;; either side matches - otherwise, average is ambiguous.
-		(asserts! (or (is-eq left-maker-asset-amount right-taker-asset-amount) (is-eq left-taker-asset-amount right-maker-asset-amount)) err-asset-data-mismatch)
+		;; one side matches and the taker of the other side is smaller than maker.
+		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
+		(asserts! 
+			(or 
+				(and 
+					(is-eq left-maker-asset-amount right-taker-asset-amount)
+					(<= left-taker-asset-amount right-maker-asset-amount)
+			 	)
+				(and
+					(is-eq left-taker-asset-amount right-maker-asset-amount)
+					(>= left-maker-asset-amount right-taker-asset-amount)
+				) 
+			)
+			err-asset-data-mismatch
+		)
 		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
 		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)
 		(match fill
