@@ -165,6 +165,24 @@
 		salt: uint
 		}
 	)
+	(left-oracle-data 
+		(optional 
+		{
+		timestamp: uint,
+		value: uint,
+		signature: (buff 65)
+		}
+		)
+	)
+	(right-oracle-data 
+		(optional 
+		{
+		timestamp: uint,
+		value: uint,
+		signature: (buff 65)
+		}
+		)
+	)	
 	(left-signature (buff 65))
 	(right-signature (buff 65))
 	(fill (optional uint))
@@ -211,7 +229,24 @@
 			value
 			(asserts! (>= fillable value) err-maximum-fill-reached)
 			(asserts! (> fillable u0) err-maximum-fill-reached)
-		)			
+		)
+		(and 
+			(not (is-eq (get extra-data left-order) 0x))
+			(match left-oracle-data 
+				oracle-data
+				(let 
+					(
+						(stop-price (try! (asset-data-to-uint (get extra-data left-order))))
+						(symbol 0x) ;; TODO: we need to maintain a mapping of asset-id - redstone symbol
+						(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
+					) 
+					(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
+					;; TODO: depending on buy/sell, assert oracle-price is above / below stop-price					
+				)
+				err-oracle-data-missing
+			)
+		)
+		;; TODO: check right-oracle-data			
 		(asserts! (validate-authorisation left-order-fill (get maker left-user) (get maker-pubkey left-user) left-order-hash left-signature) err-left-authorisation-failed)
 		(asserts! (validate-authorisation right-order-fill (get maker right-user) (get maker-pubkey right-user) right-order-hash right-signature) err-right-authorisation-failed)
 		(ok
@@ -317,6 +352,24 @@
 	)
 	(left-signature (buff 65))
 	(right-signature (buff 65))
+	(left-oracle-data 
+		(optional 
+		{
+		timestamp: uint,
+		value: uint,
+		signature: (buff 65)
+		}
+		)
+	)
+	(right-oracle-data 
+		(optional 
+		{
+		timestamp: uint,
+		value: uint,
+		signature: (buff 65)
+		}
+		)
+	)	
 	(fill (optional uint))
 	)
 	(let
