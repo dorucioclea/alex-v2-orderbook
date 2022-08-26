@@ -96,7 +96,15 @@ Clarinet.test({
     let response = chain.callReadOnlyFn(
       contractNames.exchange,
       'validate-match',
-      [left_order, right_order, left_signature, right_signature, types.none()],
+      [
+        left_order,
+        right_order,
+        left_signature,
+        right_signature,
+        types.none(),
+        types.none(),
+        types.none(),
+      ],
       sender.address,
     );
     let response_tuple = response.result.expectOk().expectTuple();

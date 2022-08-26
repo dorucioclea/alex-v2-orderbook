@@ -116,23 +116,7 @@
 (define-constant serialized-key-salt (serialize-tuple-key "salt"))
 (define-constant serialized-order-header (concat type-id-tuple (uint32-to-buff-be u11)))
 
-(define-read-only (hash-order
-	(order
-		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
-	)
-	)
+(define-read-only (hash-order (order {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint}))
 	(sha256
 		(concat serialized-order-header
 
@@ -174,56 +158,12 @@
 )
 
 (define-read-only (validate-match
-	(left-order
-		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
-	)
-	(right-order
-		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
-	)
-	(left-oracle-data 
-		(optional 
-		{
-		timestamp: uint,
-		value: uint,
-		signature: (buff 65)
-		}
-		)
-	)
-	(right-oracle-data 
-		(optional 
-		{
-		timestamp: uint,
-		value: uint,
-		signature: (buff 65)
-		}
-		)
-	)	
+	(left-order {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint})
+	(right-order {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint})
 	(left-signature (buff 65))
-	(right-signature (buff 65))
+	(right-signature (buff 65))	
+	(left-oracle-data (optional { timestamp: uint, value: uint, signature: (buff 65) }))
+	(right-oracle-data (optional { timestamp: uint, value: uint, signature: (buff 65) }))	
 	(fill (optional uint))
 	)
 	(let
@@ -251,24 +191,14 @@
 		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
 		(asserts! 
 			(or 
-				(and 
-					(is-eq left-maker-asset-amount right-taker-asset-amount)
-					(<= left-taker-asset-amount right-maker-asset-amount)
-			 	)
-				(and
-					(is-eq left-taker-asset-amount right-maker-asset-amount)
-					(>= left-maker-asset-amount right-taker-asset-amount)
-				) 
+				(and (is-eq left-maker-asset-amount right-taker-asset-amount) (<= left-taker-asset-amount right-maker-asset-amount))
+				(and (is-eq left-taker-asset-amount right-maker-asset-amount) (>= left-maker-asset-amount right-taker-asset-amount)) 
 			)
 			err-asset-data-mismatch
 		)
 		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
 		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)
-		(match fill
-			value
-			(asserts! (>= fillable value) err-maximum-fill-reached)
-			(asserts! (> fillable u0) err-maximum-fill-reached)
-		)
+		(match fill value (asserts! (>= fillable value) err-maximum-fill-reached) (asserts! (> fillable u0) err-maximum-fill-reached))
 		;; if left-order::extra-data is not 0x, it is a stop limit order
 		(if (is-eq (get extra-data left-order) 0x)
 			true
@@ -280,8 +210,9 @@
 					(symbol (try! (get-oracle-symbol-or-fail (if is-buy (get taker-asset left-order) (get maker-asset left-order)))))
 					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
 				)
-				;; TODO: timestamp needs to be checked 
+				;; TODO: timestamp needs to be checked to prevent use of stale data
 				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
+				;; TODO: stop currently supports risk mgmt purposes only, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
 				(asserts! (if is-buy (>= (get value oracle-data) stop-price) (<= (get value oracle-data) stop-price)) err-stop-not-triggered)
 			)
 		)
@@ -296,8 +227,9 @@
 					(symbol (try! (get-oracle-symbol-or-fail (if is-buy (get taker-asset right-order) (get maker-asset right-order)))))
 					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
 				)
-				;; TODO: timestamp needs to be checked 
+				;; TODO: timestamp needs to be checked to prevent use of stale data
 				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
+				;; TODO: stop currently supports risk mgmt purposes only, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
 				(asserts! (if is-buy (>= (get value oracle-data) stop-price) (<= (get value oracle-data) stop-price)) err-stop-not-triggered)
 			)
 		)		
@@ -317,23 +249,7 @@
 	)
 )
 
-(define-public (approve-order
-	(order
-		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
-	)
-	)
+(define-public (approve-order (order {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint}))
 	(begin
 		(asserts! (is-eq (try! (contract-call? .stxdx-registry user-maker-from-id-or-fail (get maker order))) tx-sender) err-maker-not-tx-sender)
 		(contract-call? .stxdx-registry set-order-approval (hash-order order))
@@ -345,21 +261,7 @@
 )
 
 (define-private (settle-order
-	(order
-		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
-	)
+	(order {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint})
 	(amount uint)
 	(taker uint)
 	)
@@ -374,61 +276,17 @@
 )
 
 (define-public (match-orders
-	(left-order
-		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
-	)
-	(right-order
-		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
-	)
+	(left-order {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint})
+	(right-order {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint})
 	(left-signature (buff 65))
 	(right-signature (buff 65))
-	(left-oracle-data 
-		(optional 
-		{
-		timestamp: uint,
-		value: uint,
-		signature: (buff 65)
-		}
-		)
-	)
-	(right-oracle-data 
-		(optional 
-		{
-		timestamp: uint,
-		value: uint,
-		signature: (buff 65)
-		}
-		)
-	)	
+	(left-oracle-data (optional { timestamp: uint, value: uint, signature: (buff 65) }))
+	(right-oracle-data (optional { timestamp: uint, value: uint, signature: (buff 65) }))
 	(fill (optional uint))
 	)
 	(let
 		(
-			(validation-data (try! (validate-match left-order right-order left-signature right-signature fill)))
+			(validation-data (try! (validate-match left-order right-order left-signature right-signature left-oracle-data right-oracle-data fill)))
 			(fillable (match fill value value (get fillable validation-data)))
 			(left-order-make (get left-order-make validation-data))
 			(right-order-make (get right-order-make validation-data))
