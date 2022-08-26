@@ -20,6 +20,11 @@
 (define-constant err-asset-data-too-long (err u5003))
 (define-constant err-sender-fee-payment-failed (err u5007))
 (define-constant err-asset-contract-call-failed (err u5008))
+(define-constant err-stop-not-triggered (err u5009))
+
+;; 6000-6999: oracle errors
+(define-constant err-untrusted-oracle (err u6000))
+(define-constant err-no-oracle-data (err u6001))
 
 (define-constant structured-data-prefix 0x534950303138)
 
@@ -264,25 +269,38 @@
 			(asserts! (>= fillable value) err-maximum-fill-reached)
 			(asserts! (> fillable u0) err-maximum-fill-reached)
 		)
+		;; if left-order::extra-data is not 0x, it is a stop limit order
 		(if (is-eq (get extra-data left-order) 0x)
 			true
-			(match left-oracle-data 
-				oracle-data
-				(let 
-					(
-						(stop-price (try! (asset-data-to-uint (get extra-data left-order))))
-						(is-buy (is-some (map-get? oracle-symbols (get taker-asset left-order))))
-						(symbol (get-oracle-symbol-or-fail (if is-buy (get taker-asset left-order) (get maker-asset left-order)))) ;; TODO: we need to maintain a mapping of asset-id - redstone symbol
-						(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
-					)
-					;; TODO: timestamp needs to be checked 
-					(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
-					(asserts! (if is-buy (>= (get value oracle-data) stop-price) (<= (get value oracle-data) stop-price)) err-stop-not-triggered)
+			(let 
+				(
+					(oracle-data (unwrap! left-oracle-data err-no-oracle-data))
+					(stop-price (try! (asset-data-to-uint (get extra-data left-order))))
+					(is-buy (is-some (map-get? oracle-symbols (get taker-asset left-order))))
+					(symbol (try! (get-oracle-symbol-or-fail (if is-buy (get taker-asset left-order) (get maker-asset left-order)))))
+					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
 				)
-				err-oracle-data-missing
+				;; TODO: timestamp needs to be checked 
+				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
+				(asserts! (if is-buy (>= (get value oracle-data) stop-price) (<= (get value oracle-data) stop-price)) err-stop-not-triggered)
 			)
 		)
-		;; TODO: check right-oracle-data			
+		;; if right-order::extra-data is not 0x, it is a stop limit order
+		(if (is-eq (get extra-data right-order) 0x)
+			true
+			(let 
+				(
+					(oracle-data (unwrap! right-oracle-data err-no-oracle-data))
+					(stop-price (try! (asset-data-to-uint (get extra-data right-order))))
+					(is-buy (is-some (map-get? oracle-symbols (get taker-asset right-order))))
+					(symbol (try! (get-oracle-symbol-or-fail (if is-buy (get taker-asset right-order) (get maker-asset right-order)))))
+					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
+				)
+				;; TODO: timestamp needs to be checked 
+				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
+				(asserts! (if is-buy (>= (get value oracle-data) stop-price) (<= (get value oracle-data) stop-price)) err-stop-not-triggered)
+			)
+		)		
 		(asserts! (validate-authorisation left-order-fill (get maker left-user) (get maker-pubkey left-user) left-order-hash left-signature) err-left-authorisation-failed)
 		(asserts! (validate-authorisation right-order-fill (get maker right-user) (get maker-pubkey right-user) right-order-hash right-signature) err-right-authorisation-failed)
 		(ok
