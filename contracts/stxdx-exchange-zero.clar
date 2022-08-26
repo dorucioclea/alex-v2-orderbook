@@ -11,6 +11,7 @@
 (define-constant err-right-authorisation-failed (err u3008))
 (define-constant err-maximum-fill-reached (err u3009))
 (define-constant err-maker-not-tx-sender (err u3010))
+(define-constant err-unknown-asset-id (err u3501))
 
 ;; 4000-4999: registry errors
 (define-constant err-unauthorised-caller (err u4000))
@@ -24,6 +25,39 @@
 
 (define-data-var contract-owner principal tx-sender)
 (define-map authorised-senders principal bool)
+
+(define-map trusted-oracles (buff 33) bool)
+(define-map oracle-symbols uint (buff 32))
+
+(define-read-only (is-trusted-oracle (pubkey (buff 33)))
+	(default-to false (map-get? trusted-oracles pubkey))
+)
+
+;; #[allow(unchecked_data)]
+(define-public (set-trusted-oracle (pubkey (buff 33)) (trusted bool))
+	(begin
+		(try! (is-contract-owner))
+		(ok (map-set trusted-oracles pubkey trusted))
+	)
+)
+
+(define-read-only (get-oracle-symbol-or-fail (asset-id uint))
+	(ok (unwrap! (map-get? oracle-symbols asset-id) err-unknown-asset-id))
+)
+
+(define-public (set-oracle-symbol (asset-id uint) (symbol (buff 32)))
+	(begin 
+		(try! (is-contract-owner))
+		(ok (map-set oracle-symbols asset-id symbol))
+	)
+)
+
+(define-public (remove-oracle-symbol (asset-id uint))
+	(begin 
+		(try! (is-contract-owner))
+		(ok (map-delete oracle-symbols asset-id))
+	)
+)
 
 (define-private (is-contract-owner)
 	(ok (asserts! (is-eq (var-get contract-owner) tx-sender) err-unauthorised-caller))
@@ -230,18 +264,20 @@
 			(asserts! (>= fillable value) err-maximum-fill-reached)
 			(asserts! (> fillable u0) err-maximum-fill-reached)
 		)
-		(and 
-			(not (is-eq (get extra-data left-order) 0x))
+		(if (is-eq (get extra-data left-order) 0x)
+			true
 			(match left-oracle-data 
 				oracle-data
 				(let 
 					(
 						(stop-price (try! (asset-data-to-uint (get extra-data left-order))))
-						(symbol 0x) ;; TODO: we need to maintain a mapping of asset-id - redstone symbol
+						(is-buy (is-some (map-get? oracle-symbols (get taker-asset left-order))))
+						(symbol (get-oracle-symbol-or-fail (if is-buy (get taker-asset left-order) (get maker-asset left-order)))) ;; TODO: we need to maintain a mapping of asset-id - redstone symbol
 						(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
-					) 
+					)
+					;; TODO: timestamp needs to be checked 
 					(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
-					;; TODO: depending on buy/sell, assert oracle-price is above / below stop-price					
+					(asserts! (if is-buy (>= (get value oracle-data) stop-price) (<= (get value oracle-data) stop-price)) err-stop-not-triggered)
 				)
 				err-oracle-data-missing
 			)
