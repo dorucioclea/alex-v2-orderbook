@@ -79,23 +79,7 @@
 (define-constant serialized-key-salt (serialize-tuple-key "salt"))
 (define-constant serialized-order-header (concat type-id-tuple (uint32-to-buff-be u11)))
 
-(define-read-only (hash-order
-	(order
-		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
-	)
-	)
+(define-read-only (hash-order (order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint }))
 	(sha256
 		(concat serialized-order-header
 
@@ -139,66 +123,14 @@
 (define-read-only (validate-match
 	(left-order
 		{
-			parent:
-			{
-				sender: uint,
-				sender-fee: uint,
-				maker: uint,
-				maker-asset: uint,
-				taker-asset: uint,
-				maker-asset-data: (buff 256),
-				taker-asset-data: (buff 256),
-				maximum-fill: uint,
-				expiration-height: uint,
-				extra-data: (buff 256),
-				salt: uint
-			},
-			child:
-			{
-				sender: uint,
-				sender-fee: uint,
-				maker: uint,
-				maker-asset: uint,
-				taker-asset: uint,
-				maker-asset-data: (buff 256),
-				taker-asset-data: (buff 256),
-				maximum-fill: uint,
-				expiration-height: uint,
-				extra-data: (buff 256),
-				salt: uint
-			}
+			parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint },
+			child: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint })
 		}			
 	)
 	(right-order
 		{
-			parent:
-			{
-				sender: uint,
-				sender-fee: uint,
-				maker: uint,
-				maker-asset: uint,
-				taker-asset: uint,
-				maker-asset-data: (buff 256),
-				taker-asset-data: (buff 256),
-				maximum-fill: uint,
-				expiration-height: uint,
-				extra-data: (buff 256),
-				salt: uint
-			},
-			child:
-			{
-				sender: uint,
-				sender-fee: uint,
-				maker: uint,
-				maker-asset: uint,
-				taker-asset: uint,
-				maker-asset-data: (buff 256),
-				taker-asset-data: (buff 256),
-				maximum-fill: uint,
-				expiration-height: uint,
-				extra-data: (buff 256),
-				salt: uint
-			}
+			parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint },
+			child: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint })
 		}
 	)
 	(left-signature (buff 65))
@@ -208,9 +140,7 @@
 	(let
 		(		
 			(left-parent (get parent left-order))
-			(left-child (get child left-order))
 			(right-parent (get parent right-order))
-			(right-child (get child right-order))
 			(users (try! (contract-call? .stxdx-registry get-two-users-from-id-or-fail (get maker left-parent) (get maker right-parent))))
 			(left-user (get user-1 users))
 			(right-user (get user-2 users))
@@ -226,38 +156,56 @@
 			(right-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data right-parent))))
 			(left-order-make (min left-maker-asset-amount right-taker-asset-amount))
 			(right-order-make (min left-taker-asset-amount right-maker-asset-amount))
-			(left-child-hash (hash-order left-child))
-			(right-child-hash (hash-order right-child))
 		)
 		(try! (is-authorised-sender))				
 		(asserts! (is-eq (get maker-asset left-parent) (get taker-asset right-parent)) err-maker-asset-mismatch)
 		(asserts! (is-eq (get taker-asset left-parent) (get maker-asset right-parent)) err-taker-asset-mismatch)
 		
-		(asserts! (is-eq (get maker left-parent) (get maker left-child)) err-to-be-defined)
-		(asserts! (is-eq (get maker right-parent) (get maker right-child)) err-to-be-defined)
-		(asserts! (is-eq (get maker-asset left-parent) (get taker-asset left-child)) err-to-be-defined)
-		(asserts! (is-eq (get maker-asset right-parent) (get taker-asset right-child)) err-to-be-defined)
-		(asserts! (is-eq (get taker-asset left-parent) (get maker-asset left-child)) err-to-be-defined)
-		(asserts! (is-eq (get taker-asset right-parent) (get maker-asset right-child)) err-to-be-defined)
-		(asserts! (is-eq (get maximum-fill left-parent) (get maximum-fill left-child)) err-to-be-defined)
-		(asserts! (is-eq (get maximum-fill right-parent) (get maximum-fill right-child)) err-to-be-defined)
-		(asserts! (is-eq (get expiration-height left-child) u340282366920938463463374607431768211455) err-to-be-defined)
-		(asserts! (is-eq (get expiration-height right-child) u340282366920938463463374607431768211455) err-to-be-defined)
-		(asserts! (is-eq (get extra-data left-parent) left-child-hash) err-to-be-defined)
-		(asserts! (is-eq (get extra-data right-parent) right-child-hash) err-to-be-defined)
+		(match (get child left-order)
+			left-child 
+			(begin 
+				;; validate parent-child data
+				(asserts! (is-eq (get maker left-parent) (get maker left-child)) err-to-be-defined)
+				(asserts! (is-eq (get maker-asset left-parent) (get taker-asset left-child)) err-to-be-defined)
+				(asserts! (is-eq (get taker-asset left-parent) (get maker-asset left-child)) err-to-be-defined)
+				(asserts! (is-eq (get maximum-fill left-parent) (get maximum-fill left-child)) err-to-be-defined)
+				(asserts! (is-eq (get expiration-height left-child) u340282366920938463463374607431768211455) err-to-be-defined)
+				(asserts! (is-eq (hash-order left-child) (unwrap-panic (as-max-len? (get extra-data left-parent) u32))) err-to-be-defined)
+				;; validate parent FOK
+				;; NOTE to backend: parent order has to be FOK, because 
+				;; maximum-fill of child order has to be fixed (and the order hashed) when parent order is submitted, and
+				;; we cannot retrieve the original order tuple from the hashed child order to update its maximum-fill				
+				(asserts! (is-eq left-order-fill u0) err-to-be-defined)
+				(asserts! (is-eq fillable (get maximum-fill left-parent)) err-to-be-defined)
+			)
+			(asserts! true err-to-be-defined)
+		)
+		(match (get child right-order)
+			right-child	
+			(begin		
+				;; validate parent-child data
+				(asserts! (is-eq (get maker right-parent) (get maker right-child)) err-to-be-defined)		
+				(asserts! (is-eq (get maker-asset right-parent) (get taker-asset right-child)) err-to-be-defined)		
+				(asserts! (is-eq (get taker-asset right-parent) (get maker-asset right-child)) err-to-be-defined)		
+				(asserts! (is-eq (get maximum-fill right-parent) (get maximum-fill right-child)) err-to-be-defined)		
+				(asserts! (is-eq (get expiration-height right-child) u340282366920938463463374607431768211455) err-to-be-defined)		
+				(asserts! (is-eq (hash-order right-child) (unwrap-panic (as-max-len? (get extra-data right-parent) u32))) err-to-be-defined)
+				;; validate parent FOK
+				;; NOTE to backend: parent order has to be FOK, because 
+				;; maximum-fill of child order has to be fixed (and the order hashed) when parent order is submitted, and
+				;; we cannot retrieve the original order tuple from the hashed child order to update its maximum-fill
+				(asserts! (is-eq right-order-fill u0) err-to-be-defined)
+				(asserts! (is-eq fillable (get maximum-fill right-parent)) err-to-be-defined)
+			)
+			(asserts! true err-to-be-defined)
+		)
 		
 		;; one side matches and the taker of the other side is smaller than maker.
 		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
 		(asserts! 
 			(or 
-				(and 
-					(is-eq left-maker-asset-amount right-taker-asset-amount)
-					(<= left-taker-asset-amount right-maker-asset-amount)
-			 	)
-				(and
-					(is-eq left-taker-asset-amount right-maker-asset-amount)
-					(>= left-maker-asset-amount right-taker-asset-amount)
-				) 
+				(and (is-eq left-maker-asset-amount right-taker-asset-amount) (<= left-taker-asset-amount right-maker-asset-amount))
+				(and (is-eq left-taker-asset-amount right-maker-asset-amount) (>= left-maker-asset-amount right-taker-asset-amount)) 
 			)
 			err-asset-data-mismatch
 		)
@@ -284,23 +232,7 @@
 	)
 )
 
-(define-public (approve-order
-	(order
-		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
-	)
-	)
+(define-public (approve-order (order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint }))
 	(begin
 		(asserts! (is-eq (try! (contract-call? .stxdx-registry user-maker-from-id-or-fail (get maker order))) tx-sender) err-maker-not-tx-sender)
 		(contract-call? .stxdx-registry set-order-approval (hash-order order))
@@ -311,22 +243,8 @@
 	(match (as-max-len? asset-data u16) bytes (ok (contract-call? .stxdx-utils buff-to-uint bytes)) err-asset-data-too-long)
 )
 
-(define-private (settle-order
-	(order
-		{
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
-		}
-	)
+(define-private (settle-order 
+	(order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint })
 	(amount uint)
 	(taker uint)
 	)
@@ -343,66 +261,14 @@
 (define-public (match-orders
 	(left-order
 		{
-			parent:
-			{
-				sender: uint,
-				sender-fee: uint,
-				maker: uint,
-				maker-asset: uint,
-				taker-asset: uint,
-				maker-asset-data: (buff 256),
-				taker-asset-data: (buff 256),
-				maximum-fill: uint,
-				expiration-height: uint,
-				extra-data: (buff 256),
-				salt: uint
-			},
-			child:
-			{
-				sender: uint,
-				sender-fee: uint,
-				maker: uint,
-				maker-asset: uint,
-				taker-asset: uint,
-				maker-asset-data: (buff 256),
-				taker-asset-data: (buff 256),
-				maximum-fill: uint,
-				expiration-height: uint,
-				extra-data: (buff 256),
-				salt: uint
-			}
+			parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint },
+			child: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint })
 		}			
 	)
 	(right-order
 		{
-			parent:
-			{
-				sender: uint,
-				sender-fee: uint,
-				maker: uint,
-				maker-asset: uint,
-				taker-asset: uint,
-				maker-asset-data: (buff 256),
-				taker-asset-data: (buff 256),
-				maximum-fill: uint,
-				expiration-height: uint,
-				extra-data: (buff 256),
-				salt: uint
-			},
-			child:
-			{
-				sender: uint,
-				sender-fee: uint,
-				maker: uint,
-				maker-asset: uint,
-				taker-asset: uint,
-				maker-asset-data: (buff 256),
-				taker-asset-data: (buff 256),
-				maximum-fill: uint,
-				expiration-height: uint,
-				extra-data: (buff 256),
-				salt: uint
-			}
+			parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint },
+			child: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint })
 		}
 	)
 	(left-signature (buff 65))
@@ -415,28 +281,33 @@
 			(fillable (match fill value value (get fillable validation-data)))
 			(left-parent-make (get left-order-make validation-data))
 			(right-parent-make (get right-order-make validation-data))
-			(left-child-take (try! (asset-data-to-uint (get taker-asset-data (get child left-order)))))
-			(right-child-take (try! (asset-data-to-uint (get taker-asset-data (get child right-order)))))
-			(left-margin (- left-parent-make left-child-take))
-			(right-margin (- right-parent-make right-child-take))
 			(exchange-uid (as-contract (try! (contract-call? .stxdx-registry get-user-id-or-fail tx-sender))))
 		)		
 
-		;; NOTE to backend: parent order has to be FOK, because 
-		;; maximum-fill of child order has to be fixed (and the order hashed) when parent order is submitted, and
-		;; we cannot retrieve the original order tuple from the hashed child order to update its maximum-fill
-		(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker (get parent left-order)) (unwrap-panic (as-max-len? (get extra-data (get parent left-order)) u32)))))
-		(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker (get parent right-order)) (unwrap-panic (as-max-len? (get extra-data (get parent right-order)) u32)))))
-
-		;; TODO: how do we mark to market?
-		;; registry knows fill of each order hash (incl. parent and child orders)
-		;; (1) create an order that reverses the parent order (i.e. buy => sell, sell => buy)
-		;; mtm is equal to fill * (prevailing price (f(maker-asset-data, taker-asset-data)) - initial price).
-		;; when a user wants to unwind an executed order hash (i.e. position),
-		;; we can look up fill of that order hash and determine how much to settle
-		;; it should also cancel the child order
-		(try! (settle-order (get parent left-order) (* fillable left-margin) exchange-uid))
-		(try! (settle-order (get parent right-order) (* fillable right-margin) exchange-uid))
+		(match (get child left-order)
+			left-child
+			(begin ;; add position
+				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker (get parent left-order)) (unwrap-panic (as-max-len? (get extra-data (get parent left-order)) u32)))))
+				(try! (settle-order (get parent left-order) (* fillable (- left-parent-make (try! (asset-data-to-uint (get taker-asset-data left-child))))) exchange-uid))
+			)
+			(begin ;; reduce position
+				;; TODO: 
+				;; (1) cancel child order
+				;; (2) calculate MTM to settle
+			)
+		)
+		(match (get child right-order)
+			right-child
+			(begin ;; add position
+				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker (get parent right-order)) (unwrap-panic (as-max-len? (get extra-data (get parent right-order)) u32)))))
+				(try! (settle-order (get parent right-order) (* fillable (- right-parent-make (try! (asset-data-to-uint (get taker-asset-data right-child))))) exchange-uid))				
+			)
+			(begin ;; reduce position
+				;; TODO: 
+				;; (1) cancel child order
+				;; (2) calculate MTM to settle
+			)
+		)		
 
 		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))				
 		(ok { fillable: fillable, left-order-make: left-parent-make, right-order-make: right-parent-make })
