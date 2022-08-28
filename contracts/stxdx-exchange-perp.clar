@@ -27,6 +27,18 @@
 (define-data-var contract-owner principal tx-sender)
 (define-map authorised-senders principal bool)
 
+(define-map positions 
+	(buff 32)
+	{
+		maker: uint, 
+		maker-asset: uint, 
+		taker-asset: uint, 
+		maker-asset-data: (buff 256), 
+		taker-asset-data: (buff 256),
+		child-order-hash: (buff 32)
+	}
+)
+
 (define-private (is-contract-owner)
 	(ok (asserts! (is-eq (var-get contract-owner) tx-sender) err-unauthorised-caller))
 )
@@ -235,7 +247,7 @@
 (define-public (approve-order (order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint }))
 	(begin
 		(asserts! (is-eq (try! (contract-call? .stxdx-registry user-maker-from-id-or-fail (get maker order))) tx-sender) err-maker-not-tx-sender)
-		(contract-call? .stxdx-registry set-order-approval (hash-order order))
+		(contract-call? .stxdx-registry set-order-approval (hash-order order) true)
 	)
 )
 
@@ -243,13 +255,32 @@
 	(match (as-max-len? asset-data u16) bytes (ok (contract-call? .stxdx-utils buff-to-uint bytes)) err-asset-data-too-long)
 )
 
-(define-private (settle-order 
+(define-private (settle-to-exchange 
 	(order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint })
-	(amount uint)
-	(taker uint)
+	(amount uint)	
 	)
-	(begin
-		(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer amount (get maker order) taker (get maker-asset order)) err-asset-contract-call-failed))
+	(let 
+		(
+			(exchange-uid (as-contract (try! (contract-call? .stxdx-registry get-user-id-or-fail tx-sender))))
+		)
+		(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer amount (get maker order) exchange-uid (get maker-asset order)) err-asset-contract-call-failed))
+		(and
+			(> (get sender-fee order) u0)
+			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer (get sender-fee order) (get maker order) (get sender order) u1) err-sender-fee-payment-failed))
+		)
+		(ok true)
+	)
+)
+
+(define-private (settle-from-exchange 
+	(order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint })
+	(amount uint)	
+	)
+	(let 
+		(
+			(exchange-uid (as-contract (try! (contract-call? .stxdx-registry get-user-id-or-fail tx-sender))))
+		)
+		(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer amount exchange-uid (get maker order) (get taker-asset order)) err-asset-contract-call-failed))
 		(and
 			(> (get sender-fee order) u0)
 			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer (get sender-fee order) (get maker order) (get sender order) u1) err-sender-fee-payment-failed))
@@ -281,33 +312,97 @@
 			(fillable (match fill value value (get fillable validation-data)))
 			(left-parent-make (get left-order-make validation-data))
 			(right-parent-make (get right-order-make validation-data))
-			(exchange-uid (as-contract (try! (contract-call? .stxdx-registry get-user-id-or-fail tx-sender))))
 		)		
 
 		(match (get child left-order)
 			left-child
-			(begin ;; add position
-				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker (get parent left-order)) (unwrap-panic (as-max-len? (get extra-data (get parent left-order)) u32)))))
-				(try! (settle-order (get parent left-order) (* fillable (- left-parent-make (try! (asset-data-to-uint (get taker-asset-data left-child))))) exchange-uid))
+			(let 
+				;; if child order exists, then it is to add position
+				;; extra-data of parent contains the hash of child, for validation
+			 	(
+					(parent-order (get parent left-order))
+					(child-hash (unwrap-panic (as-max-len? (get extra-data parent-order) u32)))
+				)
+				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker parent-order) child-hash true)))
+				;; TODO: can a duplicate enter the map?
+				(map-set 
+					positions
+					(get left-order-hash validation-data) 
+					{ 
+						maker: (get maker parent-order), 
+						maker-asset: (get maker-asset parent-order),
+						taker-asset: (get taker-asset parent-order),
+						maker-asset-data: (serialize-uint left-parent-make), 
+						taker-asset-data: (get taker-asset-data parent-order),
+						child-order-hash: child-hash 
+					}
+				)
+				(try! (settle-to-exchange parent-order (* fillable (- left-parent-make (try! (asset-data-to-uint (get taker-asset-data left-child)))))))
 			)
-			(begin ;; reduce position
-				;; TODO: 
-				;; (1) cancel child order
-				;; (2) calculate MTM to settle
+			(let 
+				;; if child order does not exist, then it is to reduce position
+				;; extra-data of parent contains the hash of the initiating order, so we can settle against that.
+				(
+					(parent-order (get parent left-order))
+					(open-order-hash (unwrap-panic (as-max-len? (get extra-data parent-order) u32)))
+					(open-order (unwrap! (map-get? positions open-order-hash) err-to-be-defined))
+				)
+				(asserts! (is-eq (get maker parent-order) (get maker open-order)) err-to-be-defined)
+				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset open-order)) err-to-be-defined)
+				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset open-order)) err-to-be-defined)
+				;; numeraire must be the same
+				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data open-order)) err-to-be-defined)
+				
+				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker parent-order) (get child-order-hash open-order) false)))
+				(map-delete positions open-order-hash)
+				(try! (settle-from-exchange parent-order (* fillable (- right-parent-make (try! (asset-data-to-uint (get maker-asset-data open-order)))))))
 			)
-		)
+		)	
+
 		(match (get child right-order)
 			right-child
-			(begin ;; add position
-				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker (get parent right-order)) (unwrap-panic (as-max-len? (get extra-data (get parent right-order)) u32)))))
-				(try! (settle-order (get parent right-order) (* fillable (- right-parent-make (try! (asset-data-to-uint (get taker-asset-data right-child))))) exchange-uid))				
+			(let 
+				;; if child order exists, then it is to add position
+				;; extra-data of parent contains the hash of child, for validation
+			 	(
+					(parent-order (get parent right-order))
+					(child-hash (unwrap-panic (as-max-len? (get extra-data parent-order) u32)))
+				)
+				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker parent-order) child-hash true)))
+				;; TODO: can a duplicate enter the map?
+				(map-set 
+					positions
+					(get right-order-hash validation-data) 
+					{ 
+						maker: (get maker parent-order), 
+						maker-asset: (get maker-asset parent-order),
+						taker-asset: (get taker-asset parent-order),
+						maker-asset-data: (serialize-uint right-parent-make), 
+						taker-asset-data: (get taker-asset-data parent-order),
+						child-order-hash: child-hash 
+					}
+				)
+				(try! (settle-to-exchange parent-order (* fillable (- right-parent-make (try! (asset-data-to-uint (get taker-asset-data right-child)))))))
 			)
-			(begin ;; reduce position
-				;; TODO: 
-				;; (1) cancel child order
-				;; (2) calculate MTM to settle
+			(let 
+				;; if child order does not exist, then it is to reduce position
+				;; extra-data of parent contains the hash of the initiating order, so we can settle against that.
+				(
+					(parent-order (get parent right-order))
+					(open-order-hash (unwrap-panic (as-max-len? (get extra-data parent-order) u32)))
+					(open-order (unwrap! (map-get? positions open-order-hash) err-to-be-defined))
+				)
+				(asserts! (is-eq (get maker parent-order) (get maker open-order)) err-to-be-defined)
+				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset open-order)) err-to-be-defined)
+				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset open-order)) err-to-be-defined)
+				;; numeraire must be the same
+				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data open-order)) err-to-be-defined)
+				
+				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker parent-order) (get child-order-hash open-order) false)))
+				(map-delete positions open-order-hash)
+				(try! (settle-from-exchange parent-order (* fillable (- left-parent-make (try! (asset-data-to-uint (get maker-asset-data open-order)))))))
 			)
-		)		
+		)				
 
 		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))				
 		(ok { fillable: fillable, left-order-make: left-parent-make, right-order-make: right-parent-make })

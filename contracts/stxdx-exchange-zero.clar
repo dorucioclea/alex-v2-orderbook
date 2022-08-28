@@ -247,7 +247,7 @@
 	)
 	(begin
 		(asserts! (is-eq (try! (contract-call? .stxdx-registry user-maker-from-id-or-fail (get maker order))) tx-sender) err-maker-not-tx-sender)
-		(contract-call? .stxdx-registry set-order-approval (hash-order order))
+		(contract-call? .stxdx-registry set-order-approval (hash-order order) true)
 	)
 )
 
@@ -367,32 +367,27 @@
 	(unwrap-panic (element-at byte-list (mod n u255)))
 )
 
+(define-private (uint-to-buff-iter (b (buff 1)) (p {n: uint, l: uint, a: (buff 16)}))
+	{
+		a: (if (< (len (get a p)) (get l p))
+			(unwrap-panic (as-max-len? (concat (if (is-eq (get n p) u0) 0x00 (unwrap-panic (element-at byte-list (mod (get n p) u256)))) (get a p)) u16))
+			(get a p)
+		),
+		l: (get l p),
+		n: (/ (get n p) u256)
+	}
+)
+
+(define-private (extract-digit (n uint) (digit uint))
+	(mod (/ n (pow u10 digit)) u10)
+)
+
 (define-read-only (uint128-to-buff-be (n uint))
-	(concat (unwrap-panic (element-at byte-list (mod (/ n u1329227995784915872903807060280344576) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u5192296858534827628530496329220096) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u20282409603651670423947251286016) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u79228162514264337593543950336) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u309485009821345068724781056) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u1208925819614629174706176) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u4722366482869645213696) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u18446744073709551616) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u72057594037927936) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u281474976710656) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u1099511627776) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u4294967296) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u16777216) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u65536) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u256) u256)))
-            (unwrap-panic (element-at byte-list (mod n u256)))
-    )))))))))))))))
+	(unwrap-panic (as-max-len? (get a (fold uint-to-buff-iter 0x00000000000000000000000000000000 {n: n, l: u16, a: 0x})) u16))
 )
 
 (define-read-only (uint32-to-buff-be (n uint))
-	(concat (unwrap-panic (element-at byte-list (mod (/ n u16777216) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u65536) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u256) u256)))
-            (unwrap-panic (element-at byte-list (mod n u256))
-    ))))
+	(unwrap-panic (as-max-len? (get a (fold uint-to-buff-iter 0x0000000000 {n: n, l: u4, a: 0x})) u4))
 )
 
 (define-private (string-ascii-to-buff-iter (c (string-ascii 1)) (a (buff 128)))
