@@ -161,7 +161,7 @@ Clarinet.test({
     block.receipts[0].result
       .expectOk()
       .expectTuple()
-      ['left-order-make'].expectUint(22808);
+      ['left-order-make'].expectUint(Math.floor((22855 + 22808) / 2));
     // console.log(block.receipts[0].events);
   },
 });
