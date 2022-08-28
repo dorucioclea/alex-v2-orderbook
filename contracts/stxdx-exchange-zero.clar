@@ -25,6 +25,7 @@
 ;; 6000-6999: oracle errors
 (define-constant err-untrusted-oracle (err u6000))
 (define-constant err-no-oracle-data (err u6001))
+(define-constant err-invalid-timestamp (err u6002))
 
 (define-constant structured-data-prefix 0x534950303138)
 
@@ -114,6 +115,7 @@
 (define-constant serialized-key-expiration-height (serialize-tuple-key "expiration-height"))
 (define-constant serialized-key-extra-data (serialize-tuple-key "extra-data"))
 (define-constant serialized-key-salt (serialize-tuple-key "salt"))
+(define-constant serialized-key-timestamp (serialize-tuple-key "timestamp"))
 (define-constant serialized-order-header (concat type-id-tuple (uint32-to-buff-be u11)))
 
 (define-read-only (hash-order
@@ -129,7 +131,8 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint
+		salt: uint,
+		timestamp: uint
 		}
 	)
 	)
@@ -167,9 +170,12 @@
 		(concat (serialize-uint (get taker-asset order))
 
 		(concat serialized-key-taker-asset-data
-				(serialize-buff (get taker-asset-data order))		
+		(concat (serialize-buff (get taker-asset-data order))
 
-		))))))))))))))))))))))
+		(concat serialized-key-timestamp 
+				(serialize-uint (get timestamp order)))
+
+		)))))))))))))))))))))))
 	)
 )
 
@@ -186,7 +192,8 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint
+		salt: uint,
+		timestamp: uint
 		}
 	)
 	(right-order
@@ -201,7 +208,8 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint
+		salt: uint,
+		timestamp: uint
 		}
 	)
 	(left-oracle-data 
@@ -280,8 +288,8 @@
 					(symbol (try! (get-oracle-symbol-or-fail (if is-buy (get taker-asset left-order) (get maker-asset left-order)))))
 					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
 				)
-				;; TODO: timestamp needs to be checked 
 				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
+				(asserts! (> (get timestamp left-order) (get timestamp oracle-data)) err-invalid-timestamp)
 				(asserts! (if is-buy (>= (get value oracle-data) stop-price) (<= (get value oracle-data) stop-price)) err-stop-not-triggered)
 			)
 		)
@@ -296,8 +304,8 @@
 					(symbol (try! (get-oracle-symbol-or-fail (if is-buy (get taker-asset right-order) (get maker-asset right-order)))))
 					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
 				)
-				;; TODO: timestamp needs to be checked 
 				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
+				(asserts! (> (get timestamp right-order) (get timestamp oracle-data)) err-invalid-timestamp)
 				(asserts! (if is-buy (>= (get value oracle-data) stop-price) (<= (get value oracle-data) stop-price)) err-stop-not-triggered)
 			)
 		)		
@@ -330,7 +338,8 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint
+		salt: uint,
+		timestamp: uint
 		}
 	)
 	)
@@ -357,7 +366,8 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint
+		salt: uint,
+		timestamp: uint
 		}
 	)
 	(amount uint)
@@ -386,7 +396,8 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint
+		salt: uint,
+		timestamp: uint
 		}
 	)
 	(right-order
@@ -401,7 +412,8 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint
+		salt: uint,
+		timestamp: uint
 		}
 	)
 	(left-signature (buff 65))

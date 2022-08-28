@@ -25,6 +25,7 @@ Clarinet.test({
       'expiration-height': 100,
       'extra-data': '0x',
       salt: 1,
+      timestamp: 1,
     });
     const response = chain.callReadOnlyFn(
       contractNames.exchange,
@@ -33,10 +34,10 @@ Clarinet.test({
       sender.address,
     );
 
-    // yarn run generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 2, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": \"0x004E7253000000000000000000000000\", \"taker-asset-data\": \"0x00E1F505000000000000000000000000\", \"maximum-fill\": 1000, \"expiration-height\": 100, \"extra-data\": \"0x\", \"salt\": 1 }"
+    // yarn run generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 2, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": \"0x004E7253000000000000000000000000\", \"taker-asset-data\": \"0x00E1F505000000000000000000000000\", \"maximum-fill\": 1000, \"expiration-height\": 100, \"extra-data\": \"0x\", \"salt\": 1, \"timestamp\": 1 }"
     assertEquals(
       response.result,
-      '0x9ea2a0a9f02cf521f42d5c93d1bfe0044da9038ba020677bab8a5183dd496aa0',
+      '0xa15703e992a15ba6dc4e488b7e92612e3d7db9719406b5ac5ef2a9badf9e8995',
     );
   },
 });
@@ -63,6 +64,7 @@ Clarinet.test({
       'expiration-height': 100,
       'extra-data': '0x',
       salt: 1,
+      timestamp: 1,
     });
     const right_order = orderToTupleCV({
       sender: 1,
@@ -76,22 +78,23 @@ Clarinet.test({
       'expiration-height': 100,
       'extra-data': '0x',
       salt: 2,
+      timestamp: 1,
     });
     // console.log(left_order, right_order);
 
-    // yarn generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 2, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": \"0x004E7253000000000000000000000000\", \"taker-asset-data\": \"0x00E1F505000000000000000000000000\", \"maximum-fill\": 100, \"expiration-height\": 100, \"extra-data\": \"0x\", \"salt\": 1 }"
+    // yarn generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 2, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": \"0x004E7253000000000000000000000000\", \"taker-asset-data\": \"0x00E1F505000000000000000000000000\", \"maximum-fill\": 100, \"expiration-height\": 100, \"extra-data\": \"0x\", \"salt\": 1, \"timestamp\": 1 }"
     const left_order_hash =
-      '0xbb959eac2fee756c1d485bd52c773b7cc8167dd52b6b390eacf2861fff182154';
-    // yarn generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 3, \"maker-asset\": 2, \"taker-asset\": 1, \"maker-asset-data\": \"0x00E1F505000000000000000000000000\", \"taker-asset-data\": \"0x004E7253000000000000000000000000\", \"maximum-fill\": 50, \"expiration-height\": 100, \"extra-data\": \"0x\", \"salt\": 2 }"
+      '0x809387c986b14b0bfc30adf2261f21955cf3810975175bb211041e2099e46f14';
+    // yarn generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 3, \"maker-asset\": 2, \"taker-asset\": 1, \"maker-asset-data\": \"0x00E1F505000000000000000000000000\", \"taker-asset-data\": \"0x004E7253000000000000000000000000\", \"maximum-fill\": 50, \"expiration-height\": 100, \"extra-data\": \"0x\", \"salt\": 2, \"timestamp\": 1 }"
     const right_order_hash =
-      '0x605b2d8f902e5457c5e8c19e65cc1cba7df1ba43758c0eebf586aec685ebcc3d';
+      '0xc372d32cdc02d0247216eac5faff60cdf587667b0566de9acf4b9f0e3b97dbcd';
 
-    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0xbb959eac2fee756c1d485bd52c773b7cc8167dd52b6b390eacf2861fff182154
+    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0x809387c986b14b0bfc30adf2261f21955cf3810975175bb211041e2099e46f14
     const left_signature =
-      '0xf683892aeb1ee85dbaf13f4f755dce11226496a923625dd6734bfb0a3afc35c103de2d41bd57a8e01d0923b4e9bb65ef5055d99e8e4cbd59b0c7259a91034d3500';
-    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0x605b2d8f902e5457c5e8c19e65cc1cba7df1ba43758c0eebf586aec685ebcc3d
+      '0x63ba5eec3b711afc2122d6ea4cd31d01bc3681c559c6ecc4ef31fb795adb6c2f23f8a46dbd8198efed03328be1f8c295e18e77750ad36667780e8534d6b3361e00';
+    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0xc372d32cdc02d0247216eac5faff60cdf587667b0566de9acf4b9f0e3b97dbcd
     const right_signature =
-      '0x5ebb47614350f292ca7207cb138375ffd976f3ff29ef807147da97448a084d540af1f8b0ffbf9d15d92e1831fd6f9a702d32af027f857e09d533d07d8db875f800';
+      '0x66c07047a0ce9b372dd7fb6d0458cb4264135f074213d7046b980ac3d9fbf1215df840cb35972fc3f1ce7c46e6079f58487fbf08cdc2d2c358389918e22735f801';
 
     let response = chain.callReadOnlyFn(
       contractNames.exchange,
