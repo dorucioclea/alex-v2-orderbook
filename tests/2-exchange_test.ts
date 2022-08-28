@@ -31,6 +31,7 @@ Clarinet.test({
       'expiration-height': 100,
       'extra-data': '0x',
       salt: 1,
+      timestamp: 1,
     });
     const right_order = orderToTupleCV({
       sender: 1,
@@ -44,12 +45,13 @@ Clarinet.test({
       'expiration-height': 100,
       'extra-data': '0x',
       salt: 2,
+      timestamp: 1,
     });
 
     const left_signature =
-      '0xf683892aeb1ee85dbaf13f4f755dce11226496a923625dd6734bfb0a3afc35c103de2d41bd57a8e01d0923b4e9bb65ef5055d99e8e4cbd59b0c7259a91034d3500';
+      '0x63ba5eec3b711afc2122d6ea4cd31d01bc3681c559c6ecc4ef31fb795adb6c2f23f8a46dbd8198efed03328be1f8c295e18e77750ad36667780e8534d6b3361e00';
     const right_signature =
-      '0x5ebb47614350f292ca7207cb138375ffd976f3ff29ef807147da97448a084d540af1f8b0ffbf9d15d92e1831fd6f9a702d32af027f857e09d533d07d8db875f800';
+      '0x66c07047a0ce9b372dd7fb6d0458cb4264135f074213d7046b980ac3d9fbf1215df840cb35972fc3f1ce7c46e6079f58487fbf08cdc2d2c358389918e22735f801';
 
     // const block = chain.mineBlock([
     //   Tx.contractCall(
@@ -86,6 +88,8 @@ Clarinet.test({
           left_signature,
           right_signature,
           types.none(),
+          types.none(),
+          types.none(),
         ],
         sender.address,
       ),
@@ -120,6 +124,7 @@ Clarinet.test({
       'expiration-height': 100,
       'extra-data': '0x',
       salt: 1,
+      timestamp: 1,
     });
     const right_order = orderToTupleCV({
       sender: 1,
@@ -133,16 +138,17 @@ Clarinet.test({
       'expiration-height': 100,
       'extra-data': '0x',
       salt: 2,
+      timestamp: 1,
     });
 
-    // yarn generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 2, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": \"0x47590000000000000000000000000000\", \"taker-asset-data\": \"0x01000000000000000000000000000000\", \"maximum-fill\": 100, \"expiration-height\": 100, \"extra-data\": \"0x\", \"salt\": 1 }"
-    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0x4807ed4648e133336ad7e58341c8017e839d64b6a608373b35ce0653fc246e73
+    // yarn generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 2, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": \"0x47590000000000000000000000000000\", \"taker-asset-data\": \"0x01000000000000000000000000000000\", \"maximum-fill\": 100, \"expiration-height\": 100, \"extra-data\": \"0x\", \"salt\": 1, \"timestamp\": 1 }"
+    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0x384b9c6edc1ac957502b34705472ff930a828ab8f1d44d0e7aeb0d9e782813a4
     const left_signature =
-      '0x0e7d0d31bcca94dcb32dde37aef0cba39913bd71c3848425562482c3194d66d9588ef3fe38a95e3c580205059bbf1cef54468543bf9f5f6b367926e9198dc99100';
-    // yarn generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 3, \"maker-asset\": 2, \"taker-asset\": 1, \"maker-asset-data\": \"0x01000000000000000000000000000000\", \"taker-asset-data\": \"0x18590000000000000000000000000000\", \"maximum-fill\": 50, \"expiration-height\": 100, \"extra-data\": \"0x\", \"salt\": 2 }"
-    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0x18e62e3eb39f3d33ea15b6c7e208e226c83f653bf760fcba8f65a76fa00bf8f2
+      '0xe667c4b998e9c418a851fd681e0188f04dd56b7ec82fe29705ea5e249f572a5b541dff57a493a9917a191445e88f46327c1c0b736e1504d6d916c0334a1589f400';
+    // yarn generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 3, \"maker-asset\": 2, \"taker-asset\": 1, \"maker-asset-data\": \"0x01000000000000000000000000000000\", \"taker-asset-data\": \"0x18590000000000000000000000000000\", \"maximum-fill\": 50, \"expiration-height\": 100, \"extra-data\": \"0x\", \"salt\": 2, \"timestamp\": 1 }"
+    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0xf827fd5672d6e0cec7fc962ba4c8926ecf394ae1891324ec04d305b1272e3db9
     const right_signature =
-      '0x0af7e7842184ef68b826db52f70395c93a4ae1b353784372229a0b05e544ccf24bb38e9e2532dac7a057b94c6b3ee0c2e718ea4b27b128895a7ff4a08dcff3ee01';
+      '0xb7ed0e4b6fd26cb78b87d3cfcd9a5bd5d7132bd6546662c520f7b88b8d32d86128b1c8a859b10a200fd35232131ea00b360d5be0a524186c79c7814ee677124901';
 
     const block = chain.mineBlock([
       Tx.contractCall(
@@ -153,6 +159,8 @@ Clarinet.test({
           right_order,
           left_signature,
           right_signature,
+          types.none(),
+          types.none(),
           types.none(),
         ],
         sender.address,
