@@ -35,9 +35,9 @@ function toBuffer(input: string) {
 
 function orderToTupleCV(order: { [key: string]: any }) {
   const expected_struct = {
-    'sender': uintCV,
+    sender: uintCV,
     'sender-fee': uintCV,
-    'maker': uintCV,
+    maker: uintCV,
     'maker-asset': uintCV,
     'taker-asset': uintCV,
     'maker-asset-data': (input: string) => bufferCV(toBuffer(input)),
@@ -45,7 +45,7 @@ function orderToTupleCV(order: { [key: string]: any }) {
     'maximum-fill': uintCV,
     'expiration-height': uintCV,
     'extra-data': (input: string) => bufferCV(toBuffer(input)),
-    'salt': uintCV,
+    salt: uintCV,
   };
   const orderTuple: { [key: string]: any } = {};
   for (const [key, func] of Object.entries(expected_struct))

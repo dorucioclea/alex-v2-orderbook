@@ -4,8 +4,7 @@
 (define-constant err-unauthorised-sender (err u3000))
 (define-constant err-maker-asset-mismatch (err u3001))
 (define-constant err-taker-asset-mismatch (err u3002))
-(define-constant err-maker-asset-data-mismatch (err u3003))
-(define-constant err-taker-asset-data-mismatch (err u3004))
+(define-constant err-asset-data-mismatch (err u3003))
 (define-constant err-left-order-expired (err u3005))
 (define-constant err-right-order-expired (err u3006))
 (define-constant err-left-authorisation-failed (err u3007))
@@ -21,7 +20,6 @@
 (define-constant err-sender-fee-payment-failed (err u5007))
 (define-constant err-asset-contract-call-failed (err u5008))
 
-(define-constant ONE_8 u100000000)
 (define-constant structured-data-prefix 0x534950303138)
 
 (define-data-var contract-owner principal tx-sender)
@@ -182,12 +180,31 @@
 			(left-order-fill (get order-1 order-fills))
 			(right-order-fill (get order-2 order-fills))
 			(fillable (min (- (get maximum-fill left-order) left-order-fill) (- (get maximum-fill right-order) right-order-fill)))
+			(left-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data left-order))))
+			(left-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data left-order))))
+			(right-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data right-order))))
+			(right-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data right-order))))
+			(left-order-make (/ (+ left-maker-asset-amount right-taker-asset-amount) u2))
+			(right-order-make (/ (+ left-taker-asset-amount right-maker-asset-amount) u2))
 		)
 		(try! (is-authorised-sender))		
 		(asserts! (is-eq (get maker-asset left-order) (get taker-asset right-order)) err-maker-asset-mismatch)
 		(asserts! (is-eq (get taker-asset left-order) (get maker-asset right-order)) err-taker-asset-mismatch)
-		(asserts! (is-eq (get maker-asset-data left-order) (get taker-asset-data right-order)) err-maker-asset-data-mismatch)
-		(asserts! (is-eq (get taker-asset-data left-order) (get maker-asset-data right-order)) err-taker-asset-data-mismatch)
+		;; one side matches and the taker of the other side is smaller than maker.
+		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
+		(asserts! 
+			(or 
+				(and 
+					(is-eq left-maker-asset-amount right-taker-asset-amount)
+					(<= left-taker-asset-amount right-maker-asset-amount)
+			 	)
+				(and
+					(is-eq left-taker-asset-amount right-maker-asset-amount)
+					(>= left-maker-asset-amount right-taker-asset-amount)
+				) 
+			)
+			err-asset-data-mismatch
+		)
 		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
 		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)
 		(match fill
@@ -203,7 +220,9 @@
 			right-order-hash: right-order-hash,
 			left-order-fill: left-order-fill,
 			right-order-fill: right-order-fill,
-			fillable: fillable
+			fillable: fillable,
+			left-order-make: left-order-make,
+			right-order-make: right-order-make
 			}
 		)
 	)
@@ -304,11 +323,13 @@
 		(
 			(validation-data (try! (validate-match left-order right-order left-signature right-signature fill)))
 			(fillable (match fill value value (get fillable validation-data)))
+			(left-order-make (get left-order-make validation-data))
+			(right-order-make (get right-order-make validation-data))
 		)
-		(try! (settle-order left-order (* fillable (try! (asset-data-to-uint (get maker-asset-data left-order)))) (get maker right-order)))
-		(try! (settle-order right-order (* fillable (try! (asset-data-to-uint (get maker-asset-data right-order)))) (get maker left-order)))
+		(try! (settle-order left-order (* fillable left-order-make) (get maker right-order)))
+		(try! (settle-order right-order (* fillable right-order-make) (get maker left-order)))
 		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))
-		(ok fillable)
+		(ok { fillable: fillable, left-order-make: left-order-make, right-order-make: right-order-make })
 	)
 )
 
@@ -346,27 +367,32 @@
 	(unwrap-panic (element-at byte-list (mod n u255)))
 )
 
-(define-private (uint-to-buff-iter (b (buff 1)) (p {n: uint, l: uint, a: (buff 16)}))
-	{
-		a: (if (< (len (get a p)) (get l p))
-			(unwrap-panic (as-max-len? (concat (if (is-eq (get n p) u0) 0x00 (unwrap-panic (element-at byte-list (mod (get n p) u256)))) (get a p)) u16))
-			(get a p)
-		),
-		l: (get l p),
-		n: (/ (get n p) u256)
-	}
-)
-
-(define-private (extract-digit (n uint) (digit uint))
-	(mod (/ n (pow u10 digit)) u10)
-)
-
 (define-read-only (uint128-to-buff-be (n uint))
-	(unwrap-panic (as-max-len? (get a (fold uint-to-buff-iter 0x00000000000000000000000000000000 {n: n, l: u16, a: 0x})) u16))
+	(concat (unwrap-panic (element-at byte-list (mod (/ n u1329227995784915872903807060280344576) u256)))
+    (concat (unwrap-panic (element-at byte-list (mod (/ n u5192296858534827628530496329220096) u256)))
+    (concat (unwrap-panic (element-at byte-list (mod (/ n u20282409603651670423947251286016) u256)))
+    (concat (unwrap-panic (element-at byte-list (mod (/ n u79228162514264337593543950336) u256)))
+    (concat (unwrap-panic (element-at byte-list (mod (/ n u309485009821345068724781056) u256)))
+    (concat (unwrap-panic (element-at byte-list (mod (/ n u1208925819614629174706176) u256)))
+    (concat (unwrap-panic (element-at byte-list (mod (/ n u4722366482869645213696) u256)))
+    (concat (unwrap-panic (element-at byte-list (mod (/ n u18446744073709551616) u256)))
+    (concat (unwrap-panic (element-at byte-list (mod (/ n u72057594037927936) u256)))
+    (concat (unwrap-panic (element-at byte-list (mod (/ n u281474976710656) u256)))
+    (concat (unwrap-panic (element-at byte-list (mod (/ n u1099511627776) u256)))
+    (concat (unwrap-panic (element-at byte-list (mod (/ n u4294967296) u256)))
+    (concat (unwrap-panic (element-at byte-list (mod (/ n u16777216) u256)))
+    (concat (unwrap-panic (element-at byte-list (mod (/ n u65536) u256)))
+    (concat (unwrap-panic (element-at byte-list (mod (/ n u256) u256)))
+            (unwrap-panic (element-at byte-list (mod n u256)))
+    )))))))))))))))
 )
 
 (define-read-only (uint32-to-buff-be (n uint))
-	(unwrap-panic (as-max-len? (get a (fold uint-to-buff-iter 0x0000000000 {n: n, l: u4, a: 0x})) u4))
+	(concat (unwrap-panic (element-at byte-list (mod (/ n u16777216) u256)))
+    (concat (unwrap-panic (element-at byte-list (mod (/ n u65536) u256)))
+    (concat (unwrap-panic (element-at byte-list (mod (/ n u256) u256)))
+            (unwrap-panic (element-at byte-list (mod n u256))
+    ))))
 )
 
 (define-private (string-ascii-to-buff-iter (c (string-ascii 1)) (a (buff 128)))
