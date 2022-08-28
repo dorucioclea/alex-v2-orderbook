@@ -342,6 +342,7 @@
 			(let 
 				;; if child order does not exist, then it is to reduce position
 				;; extra-data of parent contains the hash of the initiating order, so we can settle against that.
+				;; TODO: or it chould be child order being executed (i.e. liquidation)
 				(
 					(parent-order (get parent left-order))
 					(target-order-hash (unwrap-panic (as-max-len? (get extra-data parent-order) u32)))
@@ -364,6 +365,7 @@
 			(let 
 				;; if child order exists, then it is to add position
 				;; extra-data of parent contains the hash of child, for validation
+				;; TODO: or it chould be child order being executed (i.e. liquidation)
 			 	(
 					(parent-order (get parent right-order))
 					(child-hash (unwrap-panic (as-max-len? (get extra-data parent-order) u32)))
