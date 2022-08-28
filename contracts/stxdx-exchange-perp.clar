@@ -344,18 +344,18 @@
 				;; extra-data of parent contains the hash of the initiating order, so we can settle against that.
 				(
 					(parent-order (get parent left-order))
-					(open-order-hash (unwrap-panic (as-max-len? (get extra-data parent-order) u32)))
-					(open-order (unwrap! (map-get? positions open-order-hash) err-to-be-defined))
+					(target-order-hash (unwrap-panic (as-max-len? (get extra-data parent-order) u32)))
+					(target-order (unwrap! (map-get? positions target-order-hash) err-to-be-defined))
 				)
-				(asserts! (is-eq (get maker parent-order) (get maker open-order)) err-to-be-defined)
-				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset open-order)) err-to-be-defined)
-				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset open-order)) err-to-be-defined)
+				(asserts! (is-eq (get maker parent-order) (get maker target-order)) err-to-be-defined)
+				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset target-order)) err-to-be-defined)
+				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset target-order)) err-to-be-defined)
 				;; numeraire must be the same
-				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data open-order)) err-to-be-defined)
+				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data target-order)) err-to-be-defined)
 				
-				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker parent-order) (get child-order-hash open-order) false)))
-				(map-delete positions open-order-hash)
-				(try! (settle-from-exchange parent-order (* fillable (- right-parent-make (try! (asset-data-to-uint (get maker-asset-data open-order)))))))
+				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker parent-order) (get child-order-hash target-order) false)))
+				(map-delete positions target-order-hash)
+				(try! (settle-from-exchange parent-order (* fillable (- right-parent-make (try! (asset-data-to-uint (get maker-asset-data target-order)))))))
 			)
 		)	
 
@@ -389,18 +389,18 @@
 				;; extra-data of parent contains the hash of the initiating order, so we can settle against that.
 				(
 					(parent-order (get parent right-order))
-					(open-order-hash (unwrap-panic (as-max-len? (get extra-data parent-order) u32)))
-					(open-order (unwrap! (map-get? positions open-order-hash) err-to-be-defined))
+					(target-order-hash (unwrap-panic (as-max-len? (get extra-data parent-order) u32)))
+					(target-order (unwrap! (map-get? positions target-order-hash) err-to-be-defined))
 				)
-				(asserts! (is-eq (get maker parent-order) (get maker open-order)) err-to-be-defined)
-				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset open-order)) err-to-be-defined)
-				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset open-order)) err-to-be-defined)
+				(asserts! (is-eq (get maker parent-order) (get maker target-order)) err-to-be-defined)
+				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset target-order)) err-to-be-defined)
+				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset target-order)) err-to-be-defined)
 				;; numeraire must be the same
-				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data open-order)) err-to-be-defined)
+				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data target-order)) err-to-be-defined)
 				
-				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker parent-order) (get child-order-hash open-order) false)))
-				(map-delete positions open-order-hash)
-				(try! (settle-from-exchange parent-order (* fillable (- left-parent-make (try! (asset-data-to-uint (get maker-asset-data open-order)))))))
+				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker parent-order) (get child-order-hash target-order) false)))
+				(map-delete positions target-order-hash)
+				(try! (settle-from-exchange parent-order (* fillable (- left-parent-make (try! (asset-data-to-uint (get maker-asset-data target-order)))))))
 			)
 		)				
 
