@@ -10,7 +10,7 @@ import {
 } from './includes.ts';
 
 Clarinet.test({
-  name: 'Exchange: can match orders (signature validation)',
+  name: 'Exchange: can match orders',
   fn(chain: Chain, accounts: Map<string, Account>) {
     const sender = accounts.get('wallet_1')!;
 
@@ -99,7 +99,7 @@ Clarinet.test({
 });
 
 Clarinet.test({
-  name: 'Exchange: can match loose orders (signature validation)',
+  name: 'Exchange: fail to match loose orders',
   fn(chain: Chain, accounts: Map<string, Account>) {
     const sender = accounts.get('wallet_1')!;
 
@@ -158,10 +158,6 @@ Clarinet.test({
         sender.address,
       ),
     ]);
-    block.receipts[0].result
-      .expectOk()
-      .expectTuple()
-      ['left-order-make'].expectUint(Math.floor((22855 + 22808) / 2));
-    // console.log(block.receipts[0].events);
+    block.receipts[0].result.expectErr().expectUint(3003);
   },
 });
