@@ -195,14 +195,17 @@
 				(and ;; taker (right-order) is a buyer
 					(is-eq left-maker-asset-amount right-taker-asset-amount)
 					(<= left-taker-asset-amount right-maker-asset-amount)
+					;; add timestamp check (left timestamp < right timestamp)
 			 	)
 				(and ;; taker (right-order) is a seller
 					(is-eq left-taker-asset-amount right-maker-asset-amount)
 					(>= left-maker-asset-amount right-taker-asset-amount)
+					;; add timestamp check (left timestamp < right timestamp)
 				) 
 			)
 			err-asset-data-mismatch
 		)
+		;; if 
 		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
 		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)
 		(match fill
