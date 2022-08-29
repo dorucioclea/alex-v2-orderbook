@@ -118,7 +118,8 @@
 (define-constant serialized-key-extra-data (serialize-tuple-key "extra-data"))
 (define-constant serialized-key-salt (serialize-tuple-key "salt"))
 (define-constant serialized-key-timestamp (serialize-tuple-key "timestamp"))
-(define-constant serialized-order-header (concat type-id-tuple (uint32-to-buff-be u12)))
+(define-constant serialized-key-stop (serialize-tuple-key "stop"))
+(define-constant serialized-order-header (concat type-id-tuple (uint32-to-buff-be u13)))
 
 (define-read-only (hash-order
 	(order
@@ -134,7 +135,8 @@
 		expiration-height: uint,
 		extra-data: (buff 256),
 		salt: uint,
-		timestamp: uint
+		timestamp: uint,
+		stop: uint
 		}
 	)
 	)
@@ -167,6 +169,9 @@
 
 		(concat serialized-key-sender-fee
 		(concat (serialize-uint (get sender-fee order))
+
+		(concat serialized-key-stop
+		(concat (serialize-uint (get stop order))		
 		
 		(concat serialized-key-taker-asset
 		(concat (serialize-uint (get taker-asset order))
@@ -177,7 +182,7 @@
 		(concat serialized-key-timestamp 
 				(serialize-uint (get timestamp order)))
 
-		)))))))))))))))))))))))
+		)))))))))))))))))))))))))
 	)
 )
 
@@ -195,7 +200,8 @@
 		expiration-height: uint,
 		extra-data: (buff 256),
 		salt: uint,
-		timestamp: uint
+		timestamp: uint,
+		stop: uint
 		}
 	)
 	(right-order
@@ -211,7 +217,8 @@
 		expiration-height: uint,
 		extra-data: (buff 256),
 		salt: uint,
-		timestamp: uint
+		timestamp: uint,
+		stop: uint
 		}
 	)
 	(left-signature (buff 65))
