@@ -45,6 +45,7 @@ export function orderToTupleCV(order: { [key: string]: any }) {
     'expiration-height': uintCV,
     'extra-data': buff,
     salt: uintCV,
+    timestamp: uintCV,
   };
   const orderTuple: { [key: string]: any } = {};
   for (const [key, func] of Object.entries(expected_struct))

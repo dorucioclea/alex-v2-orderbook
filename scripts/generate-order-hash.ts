@@ -46,11 +46,13 @@ function orderToTupleCV(order: { [key: string]: any }) {
     'expiration-height': uintCV,
     'extra-data': (input: string) => bufferCV(toBuffer(input)),
     salt: uintCV,
+    timestamp: uintCV,
   };
   const orderTuple: { [key: string]: any } = {};
   for (const [key, func] of Object.entries(expected_struct))
     if (key in order) orderTuple[key] = func(order[key]);
     else throw new Error(`Order object missing '${key}' field`);
+
   return tupleCV(orderTuple);
 }
 
@@ -64,6 +66,7 @@ try {
   console.log('Invalid JSON');
   process.exit(1);
 }
+
 const orderTuple = orderToTupleCV(order);
 const hash = hashOrder(orderTuple) as Buffer;
 console.log('0x' + hash.toString('hex'));

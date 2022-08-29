@@ -11,6 +11,9 @@
 (define-constant err-right-authorisation-failed (err u3008))
 (define-constant err-maximum-fill-reached (err u3009))
 (define-constant err-maker-not-tx-sender (err u3010))
+(define-constant err-invalid-timestamp (err u3011))
+(define-constant err-unknown-asset-id (err u3501))
+
 
 ;; 4000-4999: registry errors
 (define-constant err-unauthorised-caller (err u4000))
@@ -19,11 +22,50 @@
 (define-constant err-asset-data-too-long (err u5003))
 (define-constant err-sender-fee-payment-failed (err u5007))
 (define-constant err-asset-contract-call-failed (err u5008))
+(define-constant err-stop-not-triggered (err u5009))
+
+;; 6000-6999: oracle errors
+(define-constant err-untrusted-oracle (err u6000))
+(define-constant err-no-oracle-data (err u6001))
+
 
 (define-constant structured-data-prefix 0x534950303138)
 
 (define-data-var contract-owner principal tx-sender)
 (define-map authorised-senders principal bool)
+
+(define-map trusted-oracles (buff 33) bool)
+(define-map oracle-symbols uint (buff 32))
+
+(define-read-only (is-trusted-oracle (pubkey (buff 33)))
+	(default-to false (map-get? trusted-oracles pubkey))
+)
+
+;; #[allow(unchecked_data)]
+(define-public (set-trusted-oracle (pubkey (buff 33)) (trusted bool))
+	(begin
+		(try! (is-contract-owner))
+		(ok (map-set trusted-oracles pubkey trusted))
+	)
+)
+
+(define-read-only (get-oracle-symbol-or-fail (asset-id uint))
+	(ok (unwrap! (map-get? oracle-symbols asset-id) err-unknown-asset-id))
+)
+
+(define-public (set-oracle-symbol (asset-id uint) (symbol (buff 32)))
+	(begin 
+		(try! (is-contract-owner))
+		(ok (map-set oracle-symbols asset-id symbol))
+	)
+)
+
+(define-public (remove-oracle-symbol (asset-id uint))
+	(begin 
+		(try! (is-contract-owner))
+		(ok (map-delete oracle-symbols asset-id))
+	)
+)
 
 (define-private (is-contract-owner)
 	(ok (asserts! (is-eq (var-get contract-owner) tx-sender) err-unauthorised-caller))
@@ -75,7 +117,8 @@
 (define-constant serialized-key-expiration-height (serialize-tuple-key "expiration-height"))
 (define-constant serialized-key-extra-data (serialize-tuple-key "extra-data"))
 (define-constant serialized-key-salt (serialize-tuple-key "salt"))
-(define-constant serialized-order-header (concat type-id-tuple (uint32-to-buff-be u11)))
+(define-constant serialized-key-timestamp (serialize-tuple-key "timestamp"))
+(define-constant serialized-order-header (concat type-id-tuple (uint32-to-buff-be u12)))
 
 (define-read-only (hash-order
 	(order
@@ -90,7 +133,8 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint
+		salt: uint,
+		timestamp: uint
 		}
 	)
 	)
@@ -128,9 +172,12 @@
 		(concat (serialize-uint (get taker-asset order))
 
 		(concat serialized-key-taker-asset-data
-				(serialize-buff (get taker-asset-data order))		
+		(concat (serialize-buff (get taker-asset-data order))
 
-		))))))))))))))))))))))
+		(concat serialized-key-timestamp 
+				(serialize-uint (get timestamp order)))
+
+		)))))))))))))))))))))))
 	)
 )
 
@@ -147,7 +194,8 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint
+		salt: uint,
+		timestamp: uint
 		}
 	)
 	(right-order
@@ -162,11 +210,14 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint
+		salt: uint,
+		timestamp: uint
 		}
 	)
 	(left-signature (buff 65))
-	(right-signature (buff 65))
+	(right-signature (buff 65))	
+	(left-oracle-data (optional { timestamp: uint, value: uint, signature: (buff 65) }))
+	(right-oracle-data (optional { timestamp: uint, value: uint, signature: (buff 65) }))	
 	(fill (optional uint))
 	)
 	(let
@@ -188,31 +239,67 @@
 		(try! (is-authorised-sender))		
 		(asserts! (is-eq (get maker-asset left-order) (get taker-asset right-order)) err-maker-asset-mismatch)
 		(asserts! (is-eq (get taker-asset left-order) (get maker-asset right-order)) err-taker-asset-mismatch)
+		;; left-order must be older than right-order
+		(asserts! (< (get timestamp left-order) (get timestamp right-order)) err-invalid-timestamp)
 		;; one side matches and the taker of the other side is smaller than maker.
 		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
 		(asserts! 
-			(or 				
-				(and ;; taker (right-order) is a buyer
+			(or 
+				(and ;; both maker and taker are vanilla limit orders
 					(is-eq left-maker-asset-amount right-taker-asset-amount)
-					(<= left-taker-asset-amount right-maker-asset-amount)
-					;; add timestamp check (left timestamp < right timestamp)
+					(is-eq left-taker-asset-amount right-maker-asset-amount)				
+				)				
+				(and ;; taker (right-order) is a loose-limit buyer
+					(is-eq left-maker-asset-amount right-taker-asset-amount)
+					(< left-taker-asset-amount right-maker-asset-amount)
+					(is-eq right-order-fill u0) ;; FOK / IOC
 			 	)
-				(and ;; taker (right-order) is a seller
+				(and ;; taker (right-order) is a loose-limit seller
 					(is-eq left-taker-asset-amount right-maker-asset-amount)
-					(>= left-maker-asset-amount right-taker-asset-amount)
-					;; add timestamp check (left timestamp < right timestamp)
-				) 
+					(> left-maker-asset-amount right-taker-asset-amount)
+					(is-eq right-order-fill u0) ;; FOK / IOC
+				)
 			)
 			err-asset-data-mismatch
 		)
-		;; if 
+
 		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
 		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)
-		(match fill
-			value
-			(asserts! (>= fillable value) err-maximum-fill-reached)
-			(asserts! (> fillable u0) err-maximum-fill-reached)
-		)			
+		(match fill value (asserts! (>= fillable value) err-maximum-fill-reached) (asserts! (> fillable u0) err-maximum-fill-reached))
+		;; if left-order::extra-data is not 0x, it is a stop limit order
+		(if (is-eq (get extra-data left-order) 0x)
+			true
+			(let 
+				(
+					(oracle-data (unwrap! left-oracle-data err-no-oracle-data))
+					(stop-price (try! (asset-data-to-uint (get extra-data left-order))))
+					(is-buy (is-some (map-get? oracle-symbols (get taker-asset left-order))))
+					(symbol (try! (get-oracle-symbol-or-fail (if is-buy (get taker-asset left-order) (get maker-asset left-order)))))
+					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
+				)
+				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
+				(asserts! (< (get timestamp left-order) (get timestamp oracle-data)) err-invalid-timestamp)
+				;; TODO: stop currently supports risk mgmt purposes only, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
+				(asserts! (if is-buy (>= (get value oracle-data) stop-price) (<= (get value oracle-data) stop-price)) err-stop-not-triggered)
+			)
+		)
+		;; if right-order::extra-data is not 0x, it is a stop limit order
+		(if (is-eq (get extra-data right-order) 0x)
+			true
+			(let 
+				(
+					(oracle-data (unwrap! right-oracle-data err-no-oracle-data))
+					(stop-price (try! (asset-data-to-uint (get extra-data right-order))))
+					(is-buy (is-some (map-get? oracle-symbols (get taker-asset right-order))))
+					(symbol (try! (get-oracle-symbol-or-fail (if is-buy (get taker-asset right-order) (get maker-asset right-order)))))
+					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
+				)
+				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
+				(asserts! (< (get timestamp right-order) (get timestamp oracle-data)) err-invalid-timestamp)
+				;; TODO: stop currently supports risk mgmt purposes only, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
+				(asserts! (if is-buy (>= (get value oracle-data) stop-price) (<= (get value oracle-data) stop-price)) err-stop-not-triggered)
+			)
+		)		
 		(asserts! (validate-authorisation left-order-fill (get maker left-user) (get maker-pubkey left-user) left-order-hash left-signature) err-left-authorisation-failed)
 		(asserts! (validate-authorisation right-order-fill (get maker right-user) (get maker-pubkey right-user) right-order-hash right-signature) err-right-authorisation-failed)
 		(ok
@@ -222,8 +309,8 @@
 			left-order-fill: left-order-fill,
 			right-order-fill: right-order-fill,
 			fillable: fillable,
-			maker-matched: left-maker-asset-amount,
-			taker-matched: left-taker-asset-amount
+			left-order-make: left-maker-asset-amount,
+			right-order-make: left-taker-asset-amount
 			}
 		)
 	)
@@ -242,7 +329,8 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint
+		salt: uint,
+		timestamp: uint
 		}
 	)
 	)
@@ -269,7 +357,8 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint
+		salt: uint,
+		timestamp: uint
 		}
 	)
 	(amount uint)
@@ -298,7 +387,8 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint
+		salt: uint,
+		timestamp: uint
 		}
 	)
 	(right-order
@@ -313,24 +403,27 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint
+		salt: uint,
+		timestamp: uint
 		}
 	)
 	(left-signature (buff 65))
 	(right-signature (buff 65))
+	(left-oracle-data (optional { timestamp: uint, value: uint, signature: (buff 65) }))
+	(right-oracle-data (optional { timestamp: uint, value: uint, signature: (buff 65) }))
 	(fill (optional uint))
 	)
 	(let
 		(
-			(validation-data (try! (validate-match left-order right-order left-signature right-signature fill)))
+			(validation-data (try! (validate-match left-order right-order left-signature right-signature left-oracle-data right-oracle-data fill)))
 			(fillable (match fill value value (get fillable validation-data)))
-			(maker-matched (get maker-matched validation-data))
-			(taker-matched (get taker-matched validation-data))
+			(left-order-make (get left-order-make validation-data))
+			(right-order-make (get right-order-make validation-data))
 		)
-		(try! (settle-order left-order (* fillable maker-matched) (get maker right-order)))
-		(try! (settle-order right-order (* fillable taker-matched) (get maker left-order)))
+		(try! (settle-order left-order (* fillable left-order-make) (get maker right-order)))
+		(try! (settle-order right-order (* fillable right-order-make) (get maker left-order)))
 		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))
-		(ok { fillable: fillable, left-order-make: maker-matched, right-order-make: taker-matched })
+		(ok { fillable: fillable, left-order-make: left-order-make, right-order-make: right-order-make })
 	)
 )
 
