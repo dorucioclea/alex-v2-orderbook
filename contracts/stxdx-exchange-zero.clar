@@ -184,8 +184,6 @@
 			(left-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data left-order))))
 			(right-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data right-order))))
 			(right-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data right-order))))
-			(left-order-make (/ (+ left-maker-asset-amount right-taker-asset-amount) u2))
-			(right-order-make (/ (+ left-taker-asset-amount right-maker-asset-amount) u2))
 		)
 		(try! (is-authorised-sender))		
 		(asserts! (is-eq (get maker-asset left-order) (get taker-asset right-order)) err-maker-asset-mismatch)
@@ -193,12 +191,12 @@
 		;; one side matches and the taker of the other side is smaller than maker.
 		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
 		(asserts! 
-			(or 
-				(and 
+			(or 				
+				(and ;; taker (right-order) is a buyer
 					(is-eq left-maker-asset-amount right-taker-asset-amount)
 					(<= left-taker-asset-amount right-maker-asset-amount)
 			 	)
-				(and
+				(and ;; taker (right-order) is a seller
 					(is-eq left-taker-asset-amount right-maker-asset-amount)
 					(>= left-maker-asset-amount right-taker-asset-amount)
 				) 
@@ -221,8 +219,8 @@
 			left-order-fill: left-order-fill,
 			right-order-fill: right-order-fill,
 			fillable: fillable,
-			left-order-make: left-order-make,
-			right-order-make: right-order-make
+			maker-matched: left-maker-asset-amount,
+			taker-matched: left-taker-asset-amount
 			}
 		)
 	)
@@ -323,13 +321,13 @@
 		(
 			(validation-data (try! (validate-match left-order right-order left-signature right-signature fill)))
 			(fillable (match fill value value (get fillable validation-data)))
-			(left-order-make (get left-order-make validation-data))
-			(right-order-make (get right-order-make validation-data))
+			(maker-matched (get maker-matched validation-data))
+			(taker-matched (get taker-matched validation-data))
 		)
-		(try! (settle-order left-order (* fillable left-order-make) (get maker right-order)))
-		(try! (settle-order right-order (* fillable right-order-make) (get maker left-order)))
+		(try! (settle-order left-order (* fillable maker-matched) (get maker right-order)))
+		(try! (settle-order right-order (* fillable taker-matched) (get maker left-order)))
 		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))
-		(ok { fillable: fillable, left-order-make: left-order-make, right-order-make: right-order-make })
+		(ok { fillable: fillable, left-order-make: maker-matched, right-order-make: taker-matched })
 	)
 )
 
