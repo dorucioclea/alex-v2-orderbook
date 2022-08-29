@@ -11,7 +11,9 @@
 (define-constant err-right-authorisation-failed (err u3008))
 (define-constant err-maximum-fill-reached (err u3009))
 (define-constant err-maker-not-tx-sender (err u3010))
+(define-constant err-invalid-timestamp (err u3011))
 (define-constant err-unknown-asset-id (err u3501))
+
 
 ;; 4000-4999: registry errors
 (define-constant err-unauthorised-caller (err u4000))
@@ -25,7 +27,7 @@
 ;; 6000-6999: oracle errors
 (define-constant err-untrusted-oracle (err u6000))
 (define-constant err-no-oracle-data (err u6001))
-(define-constant err-invalid-timestamp (err u6002))
+
 
 (define-constant structured-data-prefix 0x534950303138)
 
@@ -233,21 +235,34 @@
 			(left-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data left-order))))
 			(right-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data right-order))))
 			(right-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data right-order))))
-			(left-order-make (/ (+ left-maker-asset-amount right-taker-asset-amount) u2))
-			(right-order-make (/ (+ left-taker-asset-amount right-maker-asset-amount) u2))
 		)
 		(try! (is-authorised-sender))		
 		(asserts! (is-eq (get maker-asset left-order) (get taker-asset right-order)) err-maker-asset-mismatch)
 		(asserts! (is-eq (get taker-asset left-order) (get maker-asset right-order)) err-taker-asset-mismatch)
+		;; left-order must be older than right-order
+		(asserts! (< (get timestamp left-order) (get timestamp right-order)) err-invalid-timestamp)
 		;; one side matches and the taker of the other side is smaller than maker.
 		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
 		(asserts! 
 			(or 
-				(and (is-eq left-maker-asset-amount right-taker-asset-amount) (<= left-taker-asset-amount right-maker-asset-amount))
-				(and (is-eq left-taker-asset-amount right-maker-asset-amount) (>= left-maker-asset-amount right-taker-asset-amount)) 
+				(and ;; both maker and taker are vanilla limit orders
+					(is-eq left-maker-asset-amount right-taker-asset-amount)
+					(is-eq left-taker-asset-amount right-maker-asset-amount)				
+				)				
+				(and ;; taker (right-order) is a loose-limit buyer
+					(is-eq left-maker-asset-amount right-taker-asset-amount)
+					(< left-taker-asset-amount right-maker-asset-amount)
+					(is-eq right-order-fill u0) ;; FOK / IOC
+			 	)
+				(and ;; taker (right-order) is a loose-limit seller
+					(is-eq left-taker-asset-amount right-maker-asset-amount)
+					(> left-maker-asset-amount right-taker-asset-amount)
+					(is-eq right-order-fill u0) ;; FOK / IOC
+				)
 			)
 			err-asset-data-mismatch
 		)
+
 		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
 		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)
 		(match fill value (asserts! (>= fillable value) err-maximum-fill-reached) (asserts! (> fillable u0) err-maximum-fill-reached))
@@ -294,8 +309,8 @@
 			left-order-fill: left-order-fill,
 			right-order-fill: right-order-fill,
 			fillable: fillable,
-			left-order-make: left-order-make,
-			right-order-make: right-order-make
+			left-order-make: left-maker-asset-amount,
+			right-order-make: left-taker-asset-amount
 			}
 		)
 	)
