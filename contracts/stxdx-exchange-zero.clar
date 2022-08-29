@@ -184,27 +184,11 @@
 			(left-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data left-order))))
 			(right-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data right-order))))
 			(right-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data right-order))))
-			(left-order-make (/ (+ left-maker-asset-amount right-taker-asset-amount) u2))
-			(right-order-make (/ (+ left-taker-asset-amount right-maker-asset-amount) u2))
 		)
 		(try! (is-authorised-sender))		
 		(asserts! (is-eq (get maker-asset left-order) (get taker-asset right-order)) err-maker-asset-mismatch)
 		(asserts! (is-eq (get taker-asset left-order) (get maker-asset right-order)) err-taker-asset-mismatch)
-		;; one side matches and the taker of the other side is smaller than maker.
-		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
-		(asserts! 
-			(or 
-				(and 
-					(is-eq left-maker-asset-amount right-taker-asset-amount)
-					(<= left-taker-asset-amount right-maker-asset-amount)
-			 	)
-				(and
-					(is-eq left-taker-asset-amount right-maker-asset-amount)
-					(>= left-maker-asset-amount right-taker-asset-amount)
-				) 
-			)
-			err-asset-data-mismatch
-		)
+		(asserts! (and (is-eq left-maker-asset-amount right-taker-asset-amount) (is-eq left-taker-asset-amount right-maker-asset-amount)) err-asset-data-mismatch)
 		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
 		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)
 		(match fill
@@ -221,8 +205,8 @@
 			left-order-fill: left-order-fill,
 			right-order-fill: right-order-fill,
 			fillable: fillable,
-			left-order-make: left-order-make,
-			right-order-make: right-order-make
+			left-order-make: left-maker-asset-amount,
+			right-order-make: right-maker-asset-amount
 			}
 		)
 	)
