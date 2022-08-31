@@ -6,9 +6,7 @@
 import {
   bufferCV,
   contractPrincipalCV,
-  noneCV,
   serializeCV,
-  someCV,
   standardPrincipalCV,
   tupleCV,
   TupleCV,
@@ -48,9 +46,6 @@ function orderToTupleCV(order: { [key: string]: any }) {
     'expiration-height': uintCV,
     'extra-data': (input: string) => bufferCV(toBuffer(input)),
     salt: uintCV,
-    timestamp: uintCV,
-    stop: (input: string) =>
-      input == 'none' ? noneCV() : someCV(uintCV(input)),
   };
   const orderTuple: { [key: string]: any } = {};
   for (const [key, func] of Object.entries(expected_struct))

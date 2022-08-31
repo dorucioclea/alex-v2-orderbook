@@ -15,7 +15,7 @@
 (define-constant err-unknown-asset-id (err u3501))
 (define-constant err-invalid-extra-data-type (err u3012))
 (define-constant err-invalid-extra-data-length (err u3013))
-
+(define-constant err-invalid-extra-data-key (err u3014))
 
 ;; 4000-4999: registry errors
 (define-constant err-unauthorised-caller (err u4000))
@@ -25,6 +25,7 @@
 (define-constant err-sender-fee-payment-failed (err u5007))
 (define-constant err-asset-contract-call-failed (err u5008))
 (define-constant err-stop-not-triggered (err u5009))
+(define-constant err-invalid-order-type (err u5010))
 
 ;; 6000-6999: oracle errors
 (define-constant err-untrusted-oracle (err u6000))
@@ -32,14 +33,23 @@
 
 (define-constant structured-data-prefix 0x534950303138)
 
+(define-constant type-order-vanilla u0)
+(define-constant type-order-fok u1)
+(define-constant type-order-ioc u2)
+
 (define-data-var contract-owner principal tx-sender)
 (define-map authorised-senders principal bool)
 
 (define-map trusted-oracles (buff 33) bool)
 (define-map oracle-symbols uint (buff 32))
+(define-map triggered-orders (buff 32) bool)
 
 (define-read-only (is-trusted-oracle (pubkey (buff 33)))
 	(default-to false (map-get? trusted-oracles pubkey))
+)
+
+(define-read-only (is-order-triggered (order-hash (buff 32)))
+	(default-to false (map-get? triggered-orders order-hash))
 )
 
 ;; #[allow(unchecked_data)]
@@ -229,12 +239,14 @@
 			(left-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data left-order))))
 			(right-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data right-order))))
 			(right-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data right-order))))
+			(left-extra-data (try! (extra-data-to-tuple (get extra-data left-order))))
+			(right-extra-data (try! (extra-data-to-tuple (get extra-data right-order))))
 		)
 		(try! (is-authorised-sender))		
 		(asserts! (is-eq (get maker-asset left-order) (get taker-asset right-order)) err-maker-asset-mismatch)
 		(asserts! (is-eq (get taker-asset left-order) (get maker-asset right-order)) err-taker-asset-mismatch)
 		;; left-order must be older than right-order
-		(asserts! (< (get timestamp left-order) (get timestamp right-order)) err-invalid-timestamp)
+		(asserts! (< (get time left-extra-data) (get time right-extra-data)) err-invalid-timestamp)
 		;; one side matches and the taker of the other side is smaller than maker.
 		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
 		(asserts! 
@@ -243,27 +255,23 @@
 					(is-eq left-maker-asset-amount right-taker-asset-amount)
 					(is-eq left-taker-asset-amount right-maker-asset-amount)				
 				)				
-				(and ;; taker (right-order) is a loose-limit buyer
+				(and ;; taker (right-order) is a market-limit buyer (has to be either FOK or IOC)
 					(is-eq left-maker-asset-amount right-taker-asset-amount)
 					(< left-taker-asset-amount right-maker-asset-amount)
-					(is-eq right-order-fill u0) ;; FOK / IOC
+					(or (is-eq (get type right-extra-data) type-order-fok) (is-eq (get type right-extra-data) type-order-ioc))
 			 	)
-				(and ;; taker (right-order) is a loose-limit seller
+				(and ;; taker (right-order) is a market-limit seller (has to be either FOK or IOC)
 					(is-eq left-taker-asset-amount right-maker-asset-amount)
 					(> left-maker-asset-amount right-taker-asset-amount)
-					(is-eq right-order-fill u0) ;; FOK / IOC
+					(or (is-eq (get type right-extra-data) type-order-fok) (is-eq (get type right-extra-data) type-order-ioc))
 				)
 			)
 			err-asset-data-mismatch
 		)
 
-		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
-		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)
-		(match fill value (asserts! (>= fillable value) err-maximum-fill-reached) (asserts! (> fillable u0) err-maximum-fill-reached))
-		
-		(match (get stop left-order)
-			stop-price
-			(let 
+		(if (or (is-eq (get stop left-extra-data) u0) (is-order-triggered left-order-hash))
+			true
+			(let
 				(
 					(oracle-data (unwrap! left-oracle-data err-no-oracle-data))
 					(is-buy (is-some (map-get? oracle-symbols (get taker-asset left-order))))
@@ -271,29 +279,42 @@
 					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
 				)
 				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
-				(asserts! (< (get timestamp left-order) (get timestamp oracle-data)) err-invalid-timestamp)
-				;; TODO: stop currently supports risk mgmt purposes only, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
-				(asserts! (if is-buy (>= (get value oracle-data) stop-price) (<= (get value oracle-data) stop-price)) err-stop-not-triggered)
+				(asserts! (< (get time left-extra-data) (get timestamp oracle-data)) err-invalid-timestamp)				
+				(if (get risk left-extra-data) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
+					(begin
+						(asserts! (if is-buy (>= (get value oracle-data) (get stop left-extra-data)) (<= (get value oracle-data) (get stop left-extra-data))) err-stop-not-triggered)
+						(asserts! (or (is-eq (get type left-extra-data) type-order-fok) (is-eq (get type left-extra-data) type-order-ioc)) err-invalid-order-type)
+					)
+					(asserts! (if is-buy (< (get value oracle-data) (get stop left-extra-data)) (> (get value oracle-data) (get stop left-extra-data))) err-stop-not-triggered)
+				)				
 			)
+		)	
+
+		(if (or (is-eq (get stop right-extra-data) u0) (is-order-triggered right-order-hash))
 			true
-		)
-		;; if right-order::extra-data is not 0x, it is a stop limit order
-		(if (is-eq (get extra-data right-order) 0x)
-			true
-			(let 
+			(let
 				(
 					(oracle-data (unwrap! right-oracle-data err-no-oracle-data))
-					(stop-price (try! (asset-data-to-uint (get extra-data right-order))))
 					(is-buy (is-some (map-get? oracle-symbols (get taker-asset right-order))))
 					(symbol (try! (get-oracle-symbol-or-fail (if is-buy (get taker-asset right-order) (get maker-asset right-order)))))
 					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
 				)
 				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
-				(asserts! (< (get timestamp right-order) (get timestamp oracle-data)) err-invalid-timestamp)
-				;; TODO: stop currently supports risk mgmt purposes only, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
-				(asserts! (if is-buy (>= (get value oracle-data) stop-price) (<= (get value oracle-data) stop-price)) err-stop-not-triggered)
+				(asserts! (< (get time right-extra-data) (get timestamp oracle-data)) err-invalid-timestamp)				
+				(if (get risk right-extra-data) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
+					(begin
+						(asserts! (if is-buy (>= (get value oracle-data) (get stop right-extra-data)) (<= (get value oracle-data) (get stop right-extra-data))) err-stop-not-triggered)
+						(asserts! (or (is-eq (get type right-extra-data) type-order-fok) (is-eq (get type right-extra-data) type-order-ioc)) err-invalid-order-type)
+					)
+					(asserts! (if is-buy (< (get value oracle-data) (get stop right-extra-data)) (> (get value oracle-data) (get stop right-extra-data))) err-stop-not-triggered)
+				)				
 			)
-		)		
+		)			
+
+		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
+		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)
+		(match fill value (asserts! (>= fillable value) err-maximum-fill-reached) (asserts! (> fillable u0) err-maximum-fill-reached))
+	
 		(asserts! (validate-authorisation left-order-fill (get maker left-user) (get maker-pubkey left-user) left-order-hash left-signature) err-left-authorisation-failed)
 		(asserts! (validate-authorisation right-order-fill (get maker right-user) (get maker-pubkey right-user) right-order-hash right-signature) err-right-authorisation-failed)
 		(ok
@@ -410,6 +431,8 @@
 			(left-order-make (get left-order-make validation-data))
 			(right-order-make (get right-order-make validation-data))
 		)
+		(map-set triggered-orders (get left-order-hash validation-data) true)
+		(map-set triggered-orders (get right-order-hash validation-data) true)
 		(try! (settle-order left-order (* fillable left-order-make) (get maker right-order)))
 		(try! (settle-order right-order (* fillable right-order-make) (get maker left-order)))
 		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))
@@ -480,124 +503,122 @@
 )
 
 (define-private (string-ascii-to-buff-iter (c (string-ascii 1)) (a (buff 128)))
-	(unwrap-panic (as-max-len? (concat a (unwrap-panic (element-at byte-list (unwrap-panic (index-of ascii-list c))))) u128))
+	(unwrap-panic (as-max-len? (concat a (string-ascii-to-byte c)) u128))
 )
 
 (define-read-only (string-ascii-to-buff (str (string-ascii 128)))
 	(fold string-ascii-to-buff-iter str 0x)
 )
 
-(define-private (byte-to-string-ascii (byte (buff 1)))
-	(unwrap-panic (element-at ascii-list (unwrap-panic (index-of byte-list byte))))
-)
-
-(define-read-only (bytes-to-string-ascii (bytes (buff 128)))
-	(fold + (map byte-to-string-ascii bytes) "")
+(define-private (string-ascii-to-byte (c (string-ascii 1)))
+	(unwrap-panic (element-at byte-list (unwrap-panic (index-of ascii-list c))))
 )
 
 ;; Exports a tuple of the following type (size in bracket):
 ;; {
+;; risk (4): bool (1),
+;; stop (4): uint (16)
+;; time (4): uint (16),
 ;; type (4): uint (16),
-;; stop (4): uint (16),
-;; sign (4): bool (1),
-;; hash (4): (buff 32)
 ;; }
-(define-read-only (extract-extra-data (extra-data (buff 256)))
+(define-read-only (extra-data-to-tuple (extra-data (buff 256)))
 	(begin
-		(asserts! (is-eq (element-at extra-data u1) (some 0x01)) err-invalid-extra-data-type)
-		(asserts! )
+		;; key 'risk'
+		(asserts! (is-eq (element-at extra-data u0) (element-at byte-list u4)) err-invalid-extra-data-type)
+		(asserts! (is-eq (element-at extra-data u1) (some (string-ascii-to-byte "r"))) err-invalid-extra-data-key)
+		(asserts! (is-eq (element-at extra-data u2) (some (string-ascii-to-byte "i"))) err-invalid-extra-data-key)
+		(asserts! (is-eq (element-at extra-data u3) (some (string-ascii-to-byte "s"))) err-invalid-extra-data-key)
+		(asserts! (is-eq (element-at extra-data u4) (some (string-ascii-to-byte "k"))) err-invalid-extra-data-key)
+		;; value true/false => mapped below directly	
+
+		;; key 'stop'
+		(asserts! (is-eq (element-at extra-data u6) (element-at byte-list u4)) err-invalid-extra-data-type)
+		(asserts! (is-eq (element-at extra-data u7) (some (string-ascii-to-byte "s"))) err-invalid-extra-data-key)
+		(asserts! (is-eq (element-at extra-data u8) (some (string-ascii-to-byte "t"))) err-invalid-extra-data-key)
+		(asserts! (is-eq (element-at extra-data u9) (some (string-ascii-to-byte "o"))) err-invalid-extra-data-key)
+		(asserts! (is-eq (element-at extra-data u10) (some (string-ascii-to-byte "p"))) err-invalid-extra-data-key)
+		;; value uint
+		(asserts! (is-eq (element-at extra-data u11) (some type-id-uint)) err-invalid-extra-data-type)				
+
+		;; key 'time'
+		(asserts! (is-eq (element-at extra-data u28) (element-at byte-list u4)) err-invalid-extra-data-type)
+		(asserts! (is-eq (element-at extra-data u29) (some (string-ascii-to-byte "t"))) err-invalid-extra-data-key)
+		(asserts! (is-eq (element-at extra-data u30) (some (string-ascii-to-byte "i"))) err-invalid-extra-data-key)
+		(asserts! (is-eq (element-at extra-data u31) (some (string-ascii-to-byte "m"))) err-invalid-extra-data-key)
+		(asserts! (is-eq (element-at extra-data u32) (some (string-ascii-to-byte "e"))) err-invalid-extra-data-key)
+		;; value uint
+		(asserts! (is-eq (element-at extra-data u33) (some type-id-uint)) err-invalid-extra-data-type)
+
+		;; key 'type'
+		(asserts! (is-eq (element-at extra-data u50) (element-at byte-list u4)) err-invalid-extra-data-type)
+		(asserts! (is-eq (element-at extra-data u51) (some (string-ascii-to-byte "t"))) err-invalid-extra-data-key)
+		(asserts! (is-eq (element-at extra-data u52) (some (string-ascii-to-byte "y"))) err-invalid-extra-data-key)
+		(asserts! (is-eq (element-at extra-data u53) (some (string-ascii-to-byte "p"))) err-invalid-extra-data-key)
+		(asserts! (is-eq (element-at extra-data u54) (some (string-ascii-to-byte "e"))) err-invalid-extra-data-key)
+		;; value uint
+		(asserts! (is-eq (element-at extra-data u55) (some type-id-uint)) err-invalid-extra-data-type)
+		
+
 		(ok {
-			;; offset 0: one byte to uint, value range 0-255
-			type: (match (element-at extra-data u0) byte (byte-to-uint byte) u0),
-			;; offset 1-17: UintCV
+			risk: (is-eq (element-at extra-data u5) (some type-id-true)),
 			stop:
 				(+
-					;; index u1 is the UintCV type ID
-					(match (element-at extra-data u2) byte (byte-to-uint byte) u0)
-					(match (element-at extra-data u3) byte (* (byte-to-uint byte) u256) u0)
-					(match (element-at extra-data u4) byte (* (byte-to-uint byte) u65536) u0)
-					(match (element-at extra-data u5) byte (* (byte-to-uint byte) u16777216) u0)
-					(match (element-at extra-data u6) byte (* (byte-to-uint byte) u4294967296) u0)
-					(match (element-at extra-data u7) byte (* (byte-to-uint byte) u1099511627776) u0)
-					(match (element-at extra-data u8) byte (* (byte-to-uint byte) u281474976710656) u0)
-					(match (element-at extra-data u9) byte (* (byte-to-uint byte) u72057594037927936) u0)
-					(match (element-at extra-data u10) byte (* (byte-to-uint byte) u18446744073709551616) u0)
-					(match (element-at extra-data u11) byte (* (byte-to-uint byte) u4722366482869645213696) u0)
-					(match (element-at extra-data u12) byte (* (byte-to-uint byte) u1208925819614629174706176) u0)
-					(match (element-at extra-data u13) byte (* (byte-to-uint byte) u309485009821345068724781056) u0)
-					(match (element-at extra-data u14) byte (* (byte-to-uint byte) u79228162514264337593543950336) u0)
-					(match (element-at extra-data u15) byte (* (byte-to-uint byte) u20282409603651670423947251286016) u0)
-					(match (element-at extra-data u16) byte (* (byte-to-uint byte) u5192296858534827628530496329220096) u0)
-					(match (element-at extra-data u17) byte (* (byte-to-uint byte) u1329227995784915872903807060280344576) u0)
-				),
-			;; offset 18: stop direction BoolCV
-			sign: (is-eq (element-at extra-data u18) (some type-id-true))
-			;; offset 19-50 related order hash BuffCV
-			hash:
-				(concat
-					(unwrap! (element-at extra-data u19) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u20) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u21) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u22) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u23) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u24) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u25) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u26) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u27) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u28) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u29) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u30) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u31) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u32) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u33) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u34) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u35) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u36) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u37) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u38) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u39) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u40) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u41) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u42) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u43) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u44) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u45) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u46) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u47) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u48) err-invalid-extra-data-length)
-				(concat
-					(unwrap! (element-at extra-data u49) err-invalid-extra-data-length)
-					(unwrap! (element-at extra-data u50) err-invalid-extra-data-length)
-				)))))))))))))))))))))))))))))))
+					(match (element-at extra-data u12) byte (byte-to-uint byte) u0)
+					(match (element-at extra-data u13) byte (* (byte-to-uint byte) u256) u0)
+					(match (element-at extra-data u14) byte (* (byte-to-uint byte) u65536) u0)
+					(match (element-at extra-data u15) byte (* (byte-to-uint byte) u16777216) u0)
+					(match (element-at extra-data u16) byte (* (byte-to-uint byte) u4294967296) u0)
+					(match (element-at extra-data u17) byte (* (byte-to-uint byte) u1099511627776) u0)
+					(match (element-at extra-data u18) byte (* (byte-to-uint byte) u281474976710656) u0)
+					(match (element-at extra-data u19) byte (* (byte-to-uint byte) u72057594037927936) u0)
+					(match (element-at extra-data u20) byte (* (byte-to-uint byte) u18446744073709551616) u0)
+					(match (element-at extra-data u21) byte (* (byte-to-uint byte) u4722366482869645213696) u0)
+					(match (element-at extra-data u22) byte (* (byte-to-uint byte) u1208925819614629174706176) u0)
+					(match (element-at extra-data u23) byte (* (byte-to-uint byte) u309485009821345068724781056) u0)
+					(match (element-at extra-data u24) byte (* (byte-to-uint byte) u79228162514264337593543950336) u0)
+					(match (element-at extra-data u25) byte (* (byte-to-uint byte) u20282409603651670423947251286016) u0)
+					(match (element-at extra-data u26) byte (* (byte-to-uint byte) u5192296858534827628530496329220096) u0)
+					(match (element-at extra-data u27) byte (* (byte-to-uint byte) u1329227995784915872903807060280344576) u0)
+				),					
+			time:
+				(+
+					(match (element-at extra-data u34) byte (byte-to-uint byte) u0)
+					(match (element-at extra-data u35) byte (* (byte-to-uint byte) u256) u0)
+					(match (element-at extra-data u36) byte (* (byte-to-uint byte) u65536) u0)
+					(match (element-at extra-data u37) byte (* (byte-to-uint byte) u16777216) u0)
+					(match (element-at extra-data u38) byte (* (byte-to-uint byte) u4294967296) u0)
+					(match (element-at extra-data u39) byte (* (byte-to-uint byte) u1099511627776) u0)
+					(match (element-at extra-data u40) byte (* (byte-to-uint byte) u281474976710656) u0)
+					(match (element-at extra-data u41) byte (* (byte-to-uint byte) u72057594037927936) u0)
+					(match (element-at extra-data u42) byte (* (byte-to-uint byte) u18446744073709551616) u0)
+					(match (element-at extra-data u43) byte (* (byte-to-uint byte) u4722366482869645213696) u0)
+					(match (element-at extra-data u44) byte (* (byte-to-uint byte) u1208925819614629174706176) u0)
+					(match (element-at extra-data u45) byte (* (byte-to-uint byte) u309485009821345068724781056) u0)
+					(match (element-at extra-data u46) byte (* (byte-to-uint byte) u79228162514264337593543950336) u0)
+					(match (element-at extra-data u47) byte (* (byte-to-uint byte) u20282409603651670423947251286016) u0)
+					(match (element-at extra-data u48) byte (* (byte-to-uint byte) u5192296858534827628530496329220096) u0)
+					(match (element-at extra-data u49) byte (* (byte-to-uint byte) u1329227995784915872903807060280344576) u0)
+				),						
+			type:
+				(+
+					(match (element-at extra-data u56) byte (byte-to-uint byte) u0)
+					(match (element-at extra-data u57) byte (* (byte-to-uint byte) u256) u0)
+					(match (element-at extra-data u58) byte (* (byte-to-uint byte) u65536) u0)
+					(match (element-at extra-data u59) byte (* (byte-to-uint byte) u16777216) u0)
+					(match (element-at extra-data u60) byte (* (byte-to-uint byte) u4294967296) u0)
+					(match (element-at extra-data u61) byte (* (byte-to-uint byte) u1099511627776) u0)
+					(match (element-at extra-data u62) byte (* (byte-to-uint byte) u281474976710656) u0)
+					(match (element-at extra-data u63) byte (* (byte-to-uint byte) u72057594037927936) u0)
+					(match (element-at extra-data u64) byte (* (byte-to-uint byte) u18446744073709551616) u0)
+					(match (element-at extra-data u65) byte (* (byte-to-uint byte) u4722366482869645213696) u0)
+					(match (element-at extra-data u66) byte (* (byte-to-uint byte) u1208925819614629174706176) u0)
+					(match (element-at extra-data u67) byte (* (byte-to-uint byte) u309485009821345068724781056) u0)
+					(match (element-at extra-data u68) byte (* (byte-to-uint byte) u79228162514264337593543950336) u0)
+					(match (element-at extra-data u69) byte (* (byte-to-uint byte) u20282409603651670423947251286016) u0)
+					(match (element-at extra-data u70) byte (* (byte-to-uint byte) u5192296858534827628530496329220096) u0)
+					(match (element-at extra-data u71) byte (* (byte-to-uint byte) u1329227995784915872903807060280344576) u0)
+				),			
+			
 		})
 	)
 )
