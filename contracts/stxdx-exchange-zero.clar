@@ -13,6 +13,8 @@
 (define-constant err-maker-not-tx-sender (err u3010))
 (define-constant err-invalid-timestamp (err u3011))
 (define-constant err-unknown-asset-id (err u3501))
+(define-constant err-invalid-extra-data-type (err u3012))
+(define-constant err-invalid-extra-data-length (err u3013))
 
 
 ;; 4000-4999: registry errors
@@ -27,7 +29,6 @@
 ;; 6000-6999: oracle errors
 (define-constant err-untrusted-oracle (err u6000))
 (define-constant err-no-oracle-data (err u6001))
-
 
 (define-constant structured-data-prefix 0x534950303138)
 
@@ -117,9 +118,7 @@
 (define-constant serialized-key-expiration-height (serialize-tuple-key "expiration-height"))
 (define-constant serialized-key-extra-data (serialize-tuple-key "extra-data"))
 (define-constant serialized-key-salt (serialize-tuple-key "salt"))
-(define-constant serialized-key-timestamp (serialize-tuple-key "timestamp"))
-(define-constant serialized-key-stop (serialize-tuple-key "stop"))
-(define-constant serialized-order-header (concat type-id-tuple (uint32-to-buff-be u13)))
+(define-constant serialized-order-header (concat type-id-tuple (uint32-to-buff-be u11)))
 
 (define-read-only (hash-order
 	(order
@@ -134,9 +133,7 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint,
-		timestamp: uint,
-		stop: uint
+		salt: uint
 		}
 	)
 	)
@@ -168,21 +165,15 @@
 		(concat (serialize-uint (get sender order))
 
 		(concat serialized-key-sender-fee
-		(concat (serialize-uint (get sender-fee order))
-
-		(concat serialized-key-stop
-		(concat (serialize-uint (get stop order))		
+		(concat (serialize-uint (get sender-fee order))	
 		
 		(concat serialized-key-taker-asset
 		(concat (serialize-uint (get taker-asset order))
 
 		(concat serialized-key-taker-asset-data
-		(concat (serialize-buff (get taker-asset-data order))
+		 		(serialize-buff (get taker-asset-data order))
 
-		(concat serialized-key-timestamp 
-				(serialize-uint (get timestamp order)))
-
-		)))))))))))))))))))))))))
+		))))))))))))))))))))))
 	)
 )
 
@@ -199,9 +190,7 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint,
-		timestamp: uint,
-		stop: uint
+		salt: uint
 		}
 	)
 	(right-order
@@ -216,9 +205,7 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint,
-		timestamp: uint,
-		stop: uint
+		salt: uint
 		}
 	)
 	(left-signature (buff 65))
@@ -273,13 +260,12 @@
 		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
 		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)
 		(match fill value (asserts! (>= fillable value) err-maximum-fill-reached) (asserts! (> fillable u0) err-maximum-fill-reached))
-		;; if left-order::extra-data is not 0x, it is a stop limit order
-		(if (is-eq (get extra-data left-order) 0x)
-			true
+		
+		(match (get stop left-order)
+			stop-price
 			(let 
 				(
 					(oracle-data (unwrap! left-oracle-data err-no-oracle-data))
-					(stop-price (try! (asset-data-to-uint (get extra-data left-order))))
 					(is-buy (is-some (map-get? oracle-symbols (get taker-asset left-order))))
 					(symbol (try! (get-oracle-symbol-or-fail (if is-buy (get taker-asset left-order) (get maker-asset left-order)))))
 					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
@@ -289,6 +275,7 @@
 				;; TODO: stop currently supports risk mgmt purposes only, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
 				(asserts! (if is-buy (>= (get value oracle-data) stop-price) (<= (get value oracle-data) stop-price)) err-stop-not-triggered)
 			)
+			true
 		)
 		;; if right-order::extra-data is not 0x, it is a stop limit order
 		(if (is-eq (get extra-data right-order) 0x)
@@ -337,7 +324,6 @@
 		expiration-height: uint,
 		extra-data: (buff 256),
 		salt: uint,
-		timestamp: uint
 		}
 	)
 	)
@@ -364,8 +350,7 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint,
-		timestamp: uint
+		salt: uint
 		}
 	)
 	(amount uint)
@@ -394,8 +379,7 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint,
-		timestamp: uint
+		salt: uint
 		}
 	)
 	(right-order
@@ -410,8 +394,7 @@
 		maximum-fill: uint,
 		expiration-height: uint,
 		extra-data: (buff 256),
-		salt: uint,
-		timestamp: uint
+		salt: uint
 		}
 	)
 	(left-signature (buff 65))
@@ -504,7 +487,118 @@
 	(fold string-ascii-to-buff-iter str 0x)
 )
 
+(define-private (byte-to-string-ascii (byte (buff 1)))
+	(unwrap-panic (element-at ascii-list (unwrap-panic (index-of byte-list byte))))
+)
+
+;; Exports a tuple of the following type:
+;; {
+;; order-type: uint,
+;; stop-price: uint,
+;; stop-direction: bool,
+;; related-order-hash: (buff 32)
+;; }
+(define-read-only (extract-extra-data (extra-data (buff 256)))
+	(begin
+		(asserts! (is-eq (element-at extra-data u1) (some 0x01)) err-invalid-extra-data-type)
+		(ok {
+			;; offset 0: one byte to uint, value range 0-255
+			order-type: (match (element-at extra-data u0) byte (byte-to-uint byte) u0),
+			;; offset 1-17: UintCV
+			stop-price:
+				(+
+					;; index u1 is the UintCV type ID
+					(match (element-at extra-data u2) byte (byte-to-uint byte) u0)
+					(match (element-at extra-data u3) byte (* (byte-to-uint byte) u256) u0)
+					(match (element-at extra-data u4) byte (* (byte-to-uint byte) u65536) u0)
+					(match (element-at extra-data u5) byte (* (byte-to-uint byte) u16777216) u0)
+					(match (element-at extra-data u6) byte (* (byte-to-uint byte) u4294967296) u0)
+					(match (element-at extra-data u7) byte (* (byte-to-uint byte) u1099511627776) u0)
+					(match (element-at extra-data u8) byte (* (byte-to-uint byte) u281474976710656) u0)
+					(match (element-at extra-data u9) byte (* (byte-to-uint byte) u72057594037927936) u0)
+					(match (element-at extra-data u10) byte (* (byte-to-uint byte) u18446744073709551616) u0)
+					(match (element-at extra-data u11) byte (* (byte-to-uint byte) u4722366482869645213696) u0)
+					(match (element-at extra-data u12) byte (* (byte-to-uint byte) u1208925819614629174706176) u0)
+					(match (element-at extra-data u13) byte (* (byte-to-uint byte) u309485009821345068724781056) u0)
+					(match (element-at extra-data u14) byte (* (byte-to-uint byte) u79228162514264337593543950336) u0)
+					(match (element-at extra-data u15) byte (* (byte-to-uint byte) u20282409603651670423947251286016) u0)
+					(match (element-at extra-data u16) byte (* (byte-to-uint byte) u5192296858534827628530496329220096) u0)
+					(match (element-at extra-data u17) byte (* (byte-to-uint byte) u1329227995784915872903807060280344576) u0)
+				),
+			;; offset 18: stop direction BoolCV
+			stop-direction: (is-eq (element-at extra-data u18) (some type-id-true))
+			;; offset 19-50 related order hash BuffCV
+			related-order-hash:
+				(concat
+					(unwrap! (element-at extra-data u19) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u20) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u21) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u22) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u23) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u24) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u25) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u26) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u27) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u28) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u29) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u30) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u31) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u32) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u33) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u34) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u35) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u36) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u37) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u38) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u39) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u40) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u41) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u42) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u43) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u44) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u45) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u46) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u47) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u48) err-invalid-extra-data-length)
+				(concat
+					(unwrap! (element-at extra-data u49) err-invalid-extra-data-length)
+					(unwrap! (element-at extra-data u50) err-invalid-extra-data-length)
+				)))))))))))))))))))))))))))))))
+		})
+	)
+)
+
 (define-constant type-id-uint 0x01)
+(define-constant type-id-true 0x03)
 (define-constant type-id-buff 0x02)
 (define-constant type-id-none 0x09)
 (define-constant type-id-some 0x0a)
