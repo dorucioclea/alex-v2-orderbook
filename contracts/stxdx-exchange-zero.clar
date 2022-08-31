@@ -491,21 +491,26 @@
 	(unwrap-panic (element-at ascii-list (unwrap-panic (index-of byte-list byte))))
 )
 
-;; Exports a tuple of the following type:
+(define-read-only (bytes-to-string-ascii (bytes (buff 128)))
+	(fold + (map byte-to-string-ascii bytes) "")
+)
+
+;; Exports a tuple of the following type (size in bracket):
 ;; {
-;; order-type: uint,
-;; stop-price: uint,
-;; stop-direction: bool,
-;; related-order-hash: (buff 32)
+;; type (4): uint (16),
+;; stop (4): uint (16),
+;; sign (4): bool (1),
+;; hash (4): (buff 32)
 ;; }
 (define-read-only (extract-extra-data (extra-data (buff 256)))
 	(begin
 		(asserts! (is-eq (element-at extra-data u1) (some 0x01)) err-invalid-extra-data-type)
+		(asserts! )
 		(ok {
 			;; offset 0: one byte to uint, value range 0-255
-			order-type: (match (element-at extra-data u0) byte (byte-to-uint byte) u0),
+			type: (match (element-at extra-data u0) byte (byte-to-uint byte) u0),
 			;; offset 1-17: UintCV
-			stop-price:
+			stop:
 				(+
 					;; index u1 is the UintCV type ID
 					(match (element-at extra-data u2) byte (byte-to-uint byte) u0)
@@ -526,9 +531,9 @@
 					(match (element-at extra-data u17) byte (* (byte-to-uint byte) u1329227995784915872903807060280344576) u0)
 				),
 			;; offset 18: stop direction BoolCV
-			stop-direction: (is-eq (element-at extra-data u18) (some type-id-true))
+			sign: (is-eq (element-at extra-data u18) (some type-id-true))
 			;; offset 19-50 related order hash BuffCV
-			related-order-hash:
+			hash:
 				(concat
 					(unwrap! (element-at extra-data u19) err-invalid-extra-data-length)
 				(concat
