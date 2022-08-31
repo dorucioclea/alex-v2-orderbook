@@ -22,6 +22,10 @@
 
 (define-constant err-to-be-defined (err u99999))
 
+(define-constant type-order-vanilla u0)
+(define-constant type-order-fok u1)
+(define-constant type-order-ioc u2)
+
 (define-constant structured-data-prefix 0x534950303138)
 
 (define-data-var contract-owner principal tx-sender)
@@ -182,13 +186,8 @@
 				(asserts! (is-eq (get taker-asset left-parent) (get maker-asset left-child)) err-to-be-defined)
 				(asserts! (is-eq (get maximum-fill left-parent) (get maximum-fill left-child)) err-to-be-defined)
 				(asserts! (is-eq (get expiration-height left-child) u340282366920938463463374607431768211455) err-to-be-defined)
-				(asserts! (is-eq (hash-order left-child) (unwrap-panic (as-max-len? (get extra-data left-parent) u32))) err-to-be-defined)
-				;; validate parent FOK
-				;; NOTE to backend: parent order has to be FOK, because 
-				;; maximum-fill of child order has to be fixed (and the order hashed) when parent order is submitted, and
-				;; we cannot retrieve the original order tuple from the hashed child order to update its maximum-fill				
-				(asserts! (is-eq left-order-fill u0) err-to-be-defined)
-				(asserts! (is-eq fillable (get maximum-fill left-parent)) err-to-be-defined)
+				(asserts! (is-eq (hash-order left-child) (get hash left-extra-data)) err-to-be-defined)
+				(asserts! (is-eq type-order-fok (get type left-extra-data)) err-to-be-defined)
 			)
 			(asserts! true err-to-be-defined)
 		)
@@ -201,13 +200,8 @@
 				(asserts! (is-eq (get taker-asset right-parent) (get maker-asset right-child)) err-to-be-defined)		
 				(asserts! (is-eq (get maximum-fill right-parent) (get maximum-fill right-child)) err-to-be-defined)		
 				(asserts! (is-eq (get expiration-height right-child) u340282366920938463463374607431768211455) err-to-be-defined)		
-				(asserts! (is-eq (hash-order right-child) (unwrap-panic (as-max-len? (get extra-data right-parent) u32))) err-to-be-defined)
-				;; validate parent FOK
-				;; NOTE to backend: parent order has to be FOK, because 
-				;; maximum-fill of child order has to be fixed (and the order hashed) when parent order is submitted, and
-				;; we cannot retrieve the original order tuple from the hashed child order to update its maximum-fill
-				(asserts! (is-eq right-order-fill u0) err-to-be-defined)
-				(asserts! (is-eq fillable (get maximum-fill right-parent)) err-to-be-defined)
+				(asserts! (is-eq (hash-order right-child) (get hash right-extra-data)) err-to-be-defined)
+				(asserts! (is-eq type-order-fok (get type right-extra-data)) err-to-be-defined)
 			)
 			(asserts! true err-to-be-defined)
 		)
@@ -238,7 +232,9 @@
 			right-order-fill: right-order-fill,
 			fillable: fillable,
 			left-order-make: left-order-make,
-			right-order-make: right-order-make
+			right-order-make: right-order-make,
+			left-extra-data: left-extra-data,
+			right-extra-data: right-extra-data
 			}
 		)
 	)
