@@ -26,7 +26,7 @@ function principalCV(input: string) {
     : contractPrincipalCV(input.substring(0, dot), input.substring(dot + 1));
 }
 
-function toBuffer(input: string) {
+function toBuffer(input: string): Buffer {
   return Buffer.from(
     input.length >= 2 && input[1] === 'x' ? input.substr(2) : input,
     'hex',
