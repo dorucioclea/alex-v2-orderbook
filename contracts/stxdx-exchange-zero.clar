@@ -325,7 +325,9 @@
 			right-order-fill: right-order-fill,
 			fillable: fillable,
 			left-order-make: left-maker-asset-amount,
-			right-order-make: left-taker-asset-amount
+			right-order-make: left-taker-asset-amount,
+			left-extra-data: left-extra-data,
+			right-extra-data: right-extra-data
 			}
 		)
 	)
@@ -435,7 +437,12 @@
 		(map-set triggered-orders (get right-order-hash validation-data) true)
 		(try! (settle-order left-order (* fillable left-order-make) (get maker right-order)))
 		(try! (settle-order right-order (* fillable right-order-make) (get maker left-order)))
-		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))
+		(try! (contract-call? .stxdx-registry set-two-order-fills 
+			(get left-order-hash validation-data) 
+			(+ (get left-order-fill validation-data) fillable) 
+			(get right-order-hash validation-data) 
+			(+ (get right-order-fill validation-data) fillable)
+		))
 		(ok 
 			{ 
 			fillable: fillable, 
