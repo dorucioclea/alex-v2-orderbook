@@ -11,6 +11,7 @@
     "generate-order-hash": "ts-node ./scripts/generate-order-hash",
     "seed-to-private-key": "ts-node ./scripts/seed-to-private-key",
     "sign-order-hash": "ts-node ./scripts/sign-order-hash",
+    "generate-order-extra-data": "ts-node ./scripts/generate-order-extra-data",
     "test": "clarinet test tests/*",
     "prepare": "husky install"
   },
