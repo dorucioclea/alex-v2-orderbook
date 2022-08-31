@@ -166,8 +166,8 @@
 			(left-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data left-parent))))
 			(right-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data right-parent))))
 			(right-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data right-parent))))
-			(left-order-make (/ (+ left-maker-asset-amount right-taker-asset-amount) u2))
-			(right-order-make (/ (+ left-taker-asset-amount right-maker-asset-amount) u2))
+			(left-extra-data (try! (extra-data-to-tuple (get extra-data left-order))))
+			(right-extra-data (try! (extra-data-to-tuple (get extra-data right-order))))			
 		)
 		(try! (is-authorised-sender))				
 		(asserts! (is-eq (get maker-asset left-parent) (get taker-asset right-parent)) err-maker-asset-mismatch)
@@ -480,6 +480,192 @@
 (define-read-only (string-ascii-to-buff (str (string-ascii 128)))
 	(fold string-ascii-to-buff-iter str 0x)
 )
+
+
+;; Exports a tuple of the following type (size in bracket):
+;; {
+;; hash (4): (buff 32)
+;; risk (4): bool (1),
+;; stop (4): uint (16)
+;; time (4): uint (16),
+;; type (4): uint (16),
+;; }
+(define-read-only (extra-data-to-tuple (extra-data (buff 256)))
+    (begin  
+        ;; key 'hash'
+        (asserts! (is-eq (element-at extra-data u0) (some 0x04)) err-invalid-extra-data-type)
+        (asserts! (is-eq (element-at extra-data u1) (some (string-ascii-to-byte "h"))) err-invalid-extra-data-key)
+        (asserts! (is-eq (element-at extra-data u2) (some (string-ascii-to-byte "a"))) err-invalid-extra-data-key)
+        (asserts! (is-eq (element-at extra-data u3) (some (string-ascii-to-byte "s"))) err-invalid-extra-data-key)
+        (asserts! (is-eq (element-at extra-data u4) (some (string-ascii-to-byte "h"))) err-invalid-extra-data-key)
+        ;; value (buff 32)
+        (asserts! (is-eq (element-at extra-data u5) (some type-id-buff)) err-invalid-extra-data-type)
+
+        ;; key 'risk'
+        (asserts! (is-eq (element-at extra-data u37) (some 0x04)) err-invalid-extra-data-type)
+        (asserts! (is-eq (element-at extra-data u38) (some (string-ascii-to-byte "r"))) err-invalid-extra-data-key)
+        (asserts! (is-eq (element-at extra-data u39) (some (string-ascii-to-byte "i"))) err-invalid-extra-data-key)
+        (asserts! (is-eq (element-at extra-data u40) (some (string-ascii-to-byte "s"))) err-invalid-extra-data-key)
+        (asserts! (is-eq (element-at extra-data u41) (some (string-ascii-to-byte "k"))) err-invalid-extra-data-key)
+        ;; value true/false => mapped below directly    
+
+        ;; key 'stop'
+        (asserts! (is-eq (element-at extra-data u43) (some 0x04)) err-invalid-extra-data-type)
+        (asserts! (is-eq (element-at extra-data u44) (some (string-ascii-to-byte "s"))) err-invalid-extra-data-key)
+        (asserts! (is-eq (element-at extra-data u45) (some (string-ascii-to-byte "t"))) err-invalid-extra-data-key)
+        (asserts! (is-eq (element-at extra-data u46) (some (string-ascii-to-byte "o"))) err-invalid-extra-data-key)
+        (asserts! (is-eq (element-at extra-data u47) (some (string-ascii-to-byte "p"))) err-invalid-extra-data-key)
+        ;; value uint
+        (asserts! (is-eq (element-at extra-data u48) (some type-id-uint)) err-invalid-extra-data-type)              
+
+        ;; key 'time'
+        (asserts! (is-eq (element-at extra-data u65) (some 0x04)) err-invalid-extra-data-type)
+        (asserts! (is-eq (element-at extra-data u66) (some (string-ascii-to-byte "t"))) err-invalid-extra-data-key)
+        (asserts! (is-eq (element-at extra-data u67) (some (string-ascii-to-byte "i"))) err-invalid-extra-data-key)
+        (asserts! (is-eq (element-at extra-data u68) (some (string-ascii-to-byte "m"))) err-invalid-extra-data-key)
+        (asserts! (is-eq (element-at extra-data u69) (some (string-ascii-to-byte "e"))) err-invalid-extra-data-key)
+        ;; value uint
+        (asserts! (is-eq (element-at extra-data u70) (some type-id-uint)) err-invalid-extra-data-type)
+
+        ;; key 'type'
+        (asserts! (is-eq (element-at extra-data u87) (some 0x04)) err-invalid-extra-data-type)
+        (asserts! (is-eq (element-at extra-data u88) (some (string-ascii-to-byte "t"))) err-invalid-extra-data-key)
+        (asserts! (is-eq (element-at extra-data u89) (some (string-ascii-to-byte "y"))) err-invalid-extra-data-key)
+        (asserts! (is-eq (element-at extra-data u90) (some (string-ascii-to-byte "p"))) err-invalid-extra-data-key)
+        (asserts! (is-eq (element-at extra-data u91) (some (string-ascii-to-byte "e"))) err-invalid-extra-data-key)
+        ;; value uint
+        (asserts! (is-eq (element-at extra-data u92) (some type-id-uint)) err-invalid-extra-data-type)
+        
+
+        (ok {
+            hash:
+                (concat
+                    (unwrap! (element-at extra-data u5) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u6) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u7) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u8) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u9) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u10) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u11) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u12) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u13) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u14) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u15) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u16) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u17) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u18) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u19) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u20) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u21) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u22) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u23) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u24) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u25) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u26) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u27) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u28) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u29) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u30) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u31) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u32) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u33) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u34) err-invalid-extra-data-length)
+                (concat
+                    (unwrap! (element-at extra-data u35) err-invalid-extra-data-length)
+                    (unwrap! (element-at extra-data u36) err-invalid-extra-data-length)
+                ))))))))))))))))))))))))))))))),    
+            risk: (is-eq (element-at extra-data u42) (some type-id-true)),
+            stop:
+                (+
+                    (match (element-at extra-data u49) byte (byte-to-uint byte) u0)
+                    (match (element-at extra-data u50) byte (* (byte-to-uint byte) u256) u0)
+                    (match (element-at extra-data u51) byte (* (byte-to-uint byte) u65536) u0)
+                    (match (element-at extra-data u52) byte (* (byte-to-uint byte) u16777216) u0)
+                    (match (element-at extra-data u53) byte (* (byte-to-uint byte) u4294967296) u0)
+                    (match (element-at extra-data u54) byte (* (byte-to-uint byte) u1099511627776) u0)
+                    (match (element-at extra-data u55) byte (* (byte-to-uint byte) u281474976710656) u0)
+                    (match (element-at extra-data u56) byte (* (byte-to-uint byte) u72057594037927936) u0)
+                    (match (element-at extra-data u57) byte (* (byte-to-uint byte) u18446744073709551616) u0)
+                    (match (element-at extra-data u58) byte (* (byte-to-uint byte) u4722366482869645213696) u0)
+                    (match (element-at extra-data u59) byte (* (byte-to-uint byte) u1208925819614629174706176) u0)
+                    (match (element-at extra-data u60) byte (* (byte-to-uint byte) u309485009821345068724781056) u0)
+                    (match (element-at extra-data u61) byte (* (byte-to-uint byte) u79228162514264337593543950336) u0)
+                    (match (element-at extra-data u62) byte (* (byte-to-uint byte) u20282409603651670423947251286016) u0)
+                    (match (element-at extra-data u63) byte (* (byte-to-uint byte) u5192296858534827628530496329220096) u0)
+                    (match (element-at extra-data u64) byte (* (byte-to-uint byte) u1329227995784915872903807060280344576) u0)
+                ),                  
+            time:
+                (+
+                    (match (element-at extra-data u71) byte (byte-to-uint byte) u0)
+                    (match (element-at extra-data u72) byte (* (byte-to-uint byte) u256) u0)
+                    (match (element-at extra-data u73) byte (* (byte-to-uint byte) u65536) u0)
+                    (match (element-at extra-data u74) byte (* (byte-to-uint byte) u16777216) u0)
+                    (match (element-at extra-data u75) byte (* (byte-to-uint byte) u4294967296) u0)
+                    (match (element-at extra-data u76) byte (* (byte-to-uint byte) u1099511627776) u0)
+                    (match (element-at extra-data u77) byte (* (byte-to-uint byte) u281474976710656) u0)
+                    (match (element-at extra-data u78) byte (* (byte-to-uint byte) u72057594037927936) u0)
+                    (match (element-at extra-data u79) byte (* (byte-to-uint byte) u18446744073709551616) u0)
+                    (match (element-at extra-data u80) byte (* (byte-to-uint byte) u4722366482869645213696) u0)
+                    (match (element-at extra-data u81) byte (* (byte-to-uint byte) u1208925819614629174706176) u0)
+                    (match (element-at extra-data u82) byte (* (byte-to-uint byte) u309485009821345068724781056) u0)
+                    (match (element-at extra-data u83) byte (* (byte-to-uint byte) u79228162514264337593543950336) u0)
+                    (match (element-at extra-data u84) byte (* (byte-to-uint byte) u20282409603651670423947251286016) u0)
+                    (match (element-at extra-data u85) byte (* (byte-to-uint byte) u5192296858534827628530496329220096) u0)
+                    (match (element-at extra-data u86) byte (* (byte-to-uint byte) u1329227995784915872903807060280344576) u0)
+                ),                      
+            type:
+                (+
+                    (match (element-at extra-data u93) byte (byte-to-uint byte) u0)
+                    (match (element-at extra-data u94) byte (* (byte-to-uint byte) u256) u0)
+                    (match (element-at extra-data u95) byte (* (byte-to-uint byte) u65536) u0)
+                    (match (element-at extra-data u96) byte (* (byte-to-uint byte) u16777216) u0)
+                    (match (element-at extra-data u97) byte (* (byte-to-uint byte) u4294967296) u0)
+                    (match (element-at extra-data u98) byte (* (byte-to-uint byte) u1099511627776) u0)
+                    (match (element-at extra-data u99) byte (* (byte-to-uint byte) u281474976710656) u0)
+                    (match (element-at extra-data u100) byte (* (byte-to-uint byte) u72057594037927936) u0)
+                    (match (element-at extra-data u101) byte (* (byte-to-uint byte) u18446744073709551616) u0)
+                    (match (element-at extra-data u102) byte (* (byte-to-uint byte) u4722366482869645213696) u0)
+                    (match (element-at extra-data u103) byte (* (byte-to-uint byte) u1208925819614629174706176) u0)
+                    (match (element-at extra-data u104) byte (* (byte-to-uint byte) u309485009821345068724781056) u0)
+                    (match (element-at extra-data u105) byte (* (byte-to-uint byte) u79228162514264337593543950336) u0)
+                    (match (element-at extra-data u106) byte (* (byte-to-uint byte) u20282409603651670423947251286016) u0)
+                    (match (element-at extra-data u107) byte (* (byte-to-uint byte) u5192296858534827628530496329220096) u0)
+                    (match (element-at extra-data u108) byte (* (byte-to-uint byte) u1329227995784915872903807060280344576) u0)
+                ),          
+            
+        })
+    )
+)
+
 
 (define-constant type-id-uint 0x01)
 (define-constant type-id-buff 0x02)

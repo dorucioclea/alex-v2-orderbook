@@ -532,7 +532,7 @@
 (define-read-only (extra-data-to-tuple (extra-data (buff 256)))
 	(begin
 		;; key 'risk'
-		(asserts! (is-eq (element-at extra-data u0) (some 0x04)) (err u101)) ;;err-invalid-extra-data-type)
+		(asserts! (is-eq (element-at extra-data u0) (some 0x04)) err-invalid-extra-data-type)
 		(asserts! (is-eq (element-at extra-data u1) (some (string-ascii-to-byte "r"))) err-invalid-extra-data-key)
 		(asserts! (is-eq (element-at extra-data u2) (some (string-ascii-to-byte "i"))) err-invalid-extra-data-key)
 		(asserts! (is-eq (element-at extra-data u3) (some (string-ascii-to-byte "s"))) err-invalid-extra-data-key)
@@ -540,22 +540,22 @@
 		;; value true/false => mapped below directly	
 
 		;; key 'stop'
-		(asserts! (is-eq (element-at extra-data u6) (some 0x04)) (err u102)) ;;err-invalid-extra-data-type)
+		(asserts! (is-eq (element-at extra-data u6) (some 0x04)) err-invalid-extra-data-type)
 		(asserts! (is-eq (element-at extra-data u7) (some (string-ascii-to-byte "s"))) err-invalid-extra-data-key)
 		(asserts! (is-eq (element-at extra-data u8) (some (string-ascii-to-byte "t"))) err-invalid-extra-data-key)
 		(asserts! (is-eq (element-at extra-data u9) (some (string-ascii-to-byte "o"))) err-invalid-extra-data-key)
 		(asserts! (is-eq (element-at extra-data u10) (some (string-ascii-to-byte "p"))) err-invalid-extra-data-key)
 		;; value uint
-		(asserts! (is-eq (element-at extra-data u11) (some type-id-uint)) (err u103)) ;;err-invalid-extra-data-type)				
+		(asserts! (is-eq (element-at extra-data u11) (some type-id-uint)) err-invalid-extra-data-type)				
 
 		;; key 'time'
-		(asserts! (is-eq (element-at extra-data u28) (some 0x04)) (err u104)) ;;err-invalid-extra-data-type)
+		(asserts! (is-eq (element-at extra-data u28) (some 0x04)) err-invalid-extra-data-type)
 		(asserts! (is-eq (element-at extra-data u29) (some (string-ascii-to-byte "t"))) err-invalid-extra-data-key)
 		(asserts! (is-eq (element-at extra-data u30) (some (string-ascii-to-byte "i"))) err-invalid-extra-data-key)
 		(asserts! (is-eq (element-at extra-data u31) (some (string-ascii-to-byte "m"))) err-invalid-extra-data-key)
 		(asserts! (is-eq (element-at extra-data u32) (some (string-ascii-to-byte "e"))) err-invalid-extra-data-key)
 		;; value uint
-		(asserts! (is-eq (element-at extra-data u33) (some type-id-uint)) (err u105)) ;;err-invalid-extra-data-type)
+		(asserts! (is-eq (element-at extra-data u33) (some type-id-uint)) err-invalid-extra-data-type)
 
 		;; key 'type'
 		(asserts! (is-eq (element-at extra-data u50) (some 0x04)) err-invalid-extra-data-type)
