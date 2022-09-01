@@ -308,6 +308,8 @@
 			(fillable (match fill value value (get fillable validation-data)))
 			(left-parent-make (get left-order-make validation-data))
 			(right-parent-make (get right-order-make validation-data))
+			(left-parent-extra (get left-order-extra validation-data))
+			(right-parent-extra (get right-order-extra validation-data))
 		)		
 
 		(match (get child left-order)
@@ -317,7 +319,7 @@
 				;; extra-data of parent contains the hash of child, for validation
 			 	(
 					(parent-order (get parent left-order))
-					(child-hash (unwrap-panic (as-max-len? (get extra-data parent-order) u32)))
+					(child-hash (get hash left-parent-extra))
 				)
 				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker parent-order) child-hash true)))
 				;; TODO: can a duplicate enter the map?
@@ -336,12 +338,11 @@
 				(try! (settle-to-exchange parent-order (* fillable (- left-parent-make (try! (asset-data-to-uint (get taker-asset-data left-child)))))))
 			)
 			(let 
-				;; if child order does not exist, then it is to reduce position
+				;; if child order does not exist, then it is to reduce position (or liquidation by the child order)
 				;; extra-data of parent contains the hash of the initiating order, so we can settle against that.
-				;; TODO: or it chould be child order being executed (i.e. liquidation)
 				(
 					(parent-order (get parent left-order))
-					(target-order-hash (unwrap-panic (as-max-len? (get extra-data parent-order) u32)))
+					(target-order-hash (get hash left-parent-extra))
 					(target-order (unwrap! (map-get? positions target-order-hash) err-to-be-defined))
 				)
 				(asserts! (is-eq (get maker parent-order) (get maker target-order)) err-to-be-defined)
