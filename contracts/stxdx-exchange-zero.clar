@@ -26,6 +26,9 @@
 (define-constant err-asset-contract-call-failed (err u5008))
 (define-constant err-stop-not-triggered (err u5009))
 (define-constant err-invalid-order-type (err u5010))
+(define-constant err-cancel-authorisation-failed (err u5011))
+(define-constant err-left-order-cancelled (err u5012))
+(define-constant err-right-order-cancelled (err u5013))
 
 ;; 6000-6999: oracle errors
 (define-constant err-untrusted-oracle (err u6000))
@@ -62,7 +65,7 @@
 (define-constant serialized-key-hash (serialize-tuple-key "hash"))
 (define-constant serialized-cancel-header (concat type-id-tuple (uint32-to-buff-be u2)))
 
-(define-read-only (hash-cancel-order (order-hash (buff 32)))
+(define-private (hash-cancel-order (order-hash (buff 32)))
 	(sha256
 		(concat serialized-cancel-header
 
@@ -97,30 +100,41 @@
 			(order-hash (hash-order order))
 			(cancel-hash (hash-cancel-order order-hash))
 			(maker-pubkey (get maker-pubkey (try! (contract-call? .stxdx-registry user-from-id-or-fail (get maker order)))))
+			(extra-data (try! (extra-data-to-tuple (get extra-data order))))
 		)
-		;; TODO: if FOK/IOC, then no need to assert the below.
-		(asserts! (is-eq (secp256k1-recover? (sha256 (concat structured-data-prefix (concat message-domain cancel-hash))) signature) (ok maker-pubkey)) err-invalid-authorisation)
+		(try! (is-authorised-sender))	
+		(asserts! 
+			(or
+				(is-eq type-order-fok (get type extra-data))
+				(is-eq type-order-ioc (get type extra-data))
+				(is-eq (secp256k1-recover? (sha256 (concat structured-data-prefix (concat message-domain cancel-hash))) signature) (ok maker-pubkey))
+			) 
+			err-cancel-authorisation-failed
+		)
 		(ok (map-set cancelled-orders order-hash true))
 	)
 )
 
-(define-public (cancel-order-many
-	(orders {
-		sender: uint,
-		sender-fee: uint,
-		maker: uint,
-		maker-asset: uint,
-		taker-asset: uint,
-		maker-asset-data: (buff 256),
-		taker-asset-data: (buff 256),
-		maximum-fill: uint,
-		expiration-height: uint,
-		extra-data: (buff 256),
-		salt: uint
+(define-private (cancel-order-iter 
+	(one-cancel-order
+		{ 
+			order: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint },
+			signature: (buff 65)
 		}
-	)
-	(signature (buff 65)))
-	(ok (map cancel-order order-hashes))
+	))
+	(cancel-order (get order one-cancel-order) (get signature one-cancel-order))
+)
+
+(define-public (cancel-order-many
+	(cancel-order-list
+		(list 200
+			{ 
+				order: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint },
+				signature: (buff 65)
+			}		
+		) 
+	))
+	(ok (map cancel-order-iter cancel-order-list))
 )
 
 ;; #[allow(unchecked_data)]
@@ -313,7 +327,14 @@
 			(left-extra-data (try! (extra-data-to-tuple (get extra-data left-order))))
 			(right-extra-data (try! (extra-data-to-tuple (get extra-data right-order))))
 		)
-		(try! (is-authorised-sender))		
+		(try! (is-authorised-sender))
+		;; both orders are not cancelled	
+		(asserts! (not (is-order-cancelled left-order-hash)) err-left-order-cancelled)
+		(asserts! (not (is-order-cancelled right-order-hash)) err-right-order-cancelled) 
+		;; both orders are not expired
+		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
+		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)				
+		;; assets to be exchanged match
 		(asserts! (is-eq (get maker-asset left-order) (get taker-asset right-order)) err-maker-asset-mismatch)
 		(asserts! (is-eq (get taker-asset left-order) (get maker-asset right-order)) err-taker-asset-mismatch)
 		;; left-order must be older than right-order
@@ -339,7 +360,7 @@
 			)
 			err-asset-data-mismatch
 		)
-
+		;; stop limit order
 		(if (or (is-eq (get stop left-extra-data) u0) (is-order-triggered left-order-hash))
 			true
 			(let
@@ -360,7 +381,6 @@
 				)				
 			)
 		)	
-
 		(if (or (is-eq (get stop right-extra-data) u0) (is-order-triggered right-order-hash))
 			true
 			(let
@@ -382,12 +402,11 @@
 			)
 		)			
 
-		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
-		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)
 		(match fill value (asserts! (>= fillable value) err-maximum-fill-reached) (asserts! (> fillable u0) err-maximum-fill-reached))
 	
 		(asserts! (validate-authorisation left-order-fill (get maker left-user) (get maker-pubkey left-user) left-order-hash left-signature) err-left-authorisation-failed)
 		(asserts! (validate-authorisation right-order-fill (get maker right-user) (get maker-pubkey right-user) right-order-hash right-signature) err-right-authorisation-failed)
+		
 		(ok
 			{
 			left-order-hash: left-order-hash,
@@ -423,7 +442,7 @@
 	)
 	(begin
 		(asserts! (is-eq (try! (contract-call? .stxdx-registry user-maker-from-id-or-fail (get maker order))) tx-sender) err-maker-not-tx-sender)
-		(contract-call? .stxdx-registry set-order-approval (hash-order order))
+		(contract-call? .stxdx-registry set-order-approval (hash-order order) true)
 	)
 )
 
@@ -511,13 +530,7 @@
 		(try! (settle-order left-order (* fillable left-order-make) (get maker right-order)))
 		(try! (settle-order right-order (* fillable right-order-make) (get maker left-order)))
 
-		;; for FOK/IOC, update the order 
-		(try! (contract-call? .stxdx-registry set-two-order-fills 
-			(get left-order-hash validation-data) 
-			(if (or (is-eq type-order-fok (get type left-extra-data)) (is-eq type-order-ioc (get type left-extra-data))) (get maximum-fill left-order) (+ (get left-order-fill validation-data) fillable)) 
-			(get right-order-hash validation-data) 
-			(if (or (is-eq type-order-fok (get type right-extra-data)) (is-eq type-order-ioc (get type right-extra-data))) (get maximum-fill right-order) (+ (get right-order-fill validation-data) fillable))
-		))
+		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))
 		(ok 
 			{ 
 			fillable: fillable, 
