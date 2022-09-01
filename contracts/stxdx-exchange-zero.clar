@@ -40,6 +40,8 @@
 (define-data-var contract-owner principal tx-sender)
 (define-map authorised-senders principal bool)
 
+(define-map cancelled-orders (buff 32) bool)
+
 (define-map trusted-oracles (buff 33) bool)
 (define-map oracle-symbols uint (buff 32))
 (define-map triggered-orders (buff 32) bool)
@@ -50,6 +52,75 @@
 
 (define-read-only (is-order-triggered (order-hash (buff 32)))
 	(default-to false (map-get? triggered-orders order-hash))
+)
+
+(define-read-only (is-order-cancelled (order-hash (buff 32)))
+	(default-to false (map-get? cancelled-orders order-hash))
+)
+
+(define-constant serialized-key-cancel (serialize-tuple-key "cancel"))
+(define-constant serialized-key-hash (serialize-tuple-key "hash"))
+(define-constant serialized-cancel-header (concat type-id-tuple (uint32-to-buff-be u2)))
+
+(define-read-only (hash-cancel-order (order-hash (buff 32)))
+	(sha256
+		(concat serialized-cancel-header
+
+		(concat serialized-key-cancel
+		(concat (serialize-bool true)
+
+		(concat serialized-key-hash 
+				(serialize-buff order-hash)
+		))))
+	)
+)
+
+(define-public (cancel-order 
+	(order
+		{
+		sender: uint,
+		sender-fee: uint,
+		maker: uint,
+		maker-asset: uint,
+		taker-asset: uint,
+		maker-asset-data: (buff 256),
+		taker-asset-data: (buff 256),
+		maximum-fill: uint,
+		expiration-height: uint,
+		extra-data: (buff 256),
+		salt: uint
+		}
+	)
+	(signature (buff 65)))
+	(let 
+		(
+			(order-hash (hash-order order))
+			(cancel-hash (hash-cancel-order order-hash))
+			(maker-pubkey (get maker-pubkey (try! (contract-call? .stxdx-registry user-from-id-or-fail (get maker order)))))
+		)
+		;; TODO: if FOK/IOC, then no need to assert the below.
+		(asserts! (is-eq (secp256k1-recover? (sha256 (concat structured-data-prefix (concat message-domain cancel-hash))) signature) (ok maker-pubkey)) err-invalid-authorisation)
+		(ok (map-set cancelled-orders order-hash true))
+	)
+)
+
+(define-public (cancel-order-many
+	(orders {
+		sender: uint,
+		sender-fee: uint,
+		maker: uint,
+		maker-asset: uint,
+		taker-asset: uint,
+		maker-asset-data: (buff 256),
+		taker-asset-data: (buff 256),
+		maximum-fill: uint,
+		expiration-height: uint,
+		extra-data: (buff 256),
+		salt: uint
+		}
+	)
+	(signature (buff 65)))
+	(ok (map cancel-order order-hashes))
 )
 
 ;; #[allow(unchecked_data)]
@@ -439,6 +510,8 @@
 		(map-set triggered-orders (get right-order-hash validation-data) true)
 		(try! (settle-order left-order (* fillable left-order-make) (get maker right-order)))
 		(try! (settle-order right-order (* fillable right-order-make) (get maker left-order)))
+
+		;; for FOK/IOC, update the order 
 		(try! (contract-call? .stxdx-registry set-two-order-fills 
 			(get left-order-hash validation-data) 
 			(if (or (is-eq type-order-fok (get type left-extra-data)) (is-eq type-order-ioc (get type left-extra-data))) (get maximum-fill left-order) (+ (get left-order-fill validation-data) fillable)) 
@@ -468,6 +541,10 @@
 		(unwrap-panic (element-at byte-list (len key)))
 		(string-ascii-to-buff key)
 	)
+)
+
+(define-read-only (serialize-bool (value bool))
+	(if value type-id-true type-id-false)
 )
 
 (define-read-only (serialize-uint (value uint))
@@ -642,6 +719,7 @@
 
 (define-constant type-id-uint 0x01)
 (define-constant type-id-true 0x03)
+(define-constant type-id-false 0x04)
 (define-constant type-id-buff 0x02)
 (define-constant type-id-none 0x09)
 (define-constant type-id-some 0x0a)
