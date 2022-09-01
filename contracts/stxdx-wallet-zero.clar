@@ -165,6 +165,36 @@
 	)
 )
 
+(define-public (approve-and-transfer-out-many (asset-trait <sip010-trait>) (request-ids (list 200 uint)))
+	(ok
+		(map approve-and-transfer-out 
+			request-ids
+			(list 
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait	asset-trait
+			)
+		)
+	)
+)
+
 (define-public (transfer-out (request-id uint) (asset-trait <sip010-trait>))
 	(let 
 		(
