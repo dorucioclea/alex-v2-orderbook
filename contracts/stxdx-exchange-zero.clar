@@ -432,6 +432,8 @@
 			(fillable (match fill value value (get fillable validation-data)))
 			(left-order-make (get left-order-make validation-data))
 			(right-order-make (get right-order-make validation-data))
+			(left-extra-data (get left-extra-data validation-data))
+			(right-extra-data (get right-extra-data validation-data))
 		)
 		(map-set triggered-orders (get left-order-hash validation-data) true)
 		(map-set triggered-orders (get right-order-hash validation-data) true)
@@ -439,9 +441,9 @@
 		(try! (settle-order right-order (* fillable right-order-make) (get maker left-order)))
 		(try! (contract-call? .stxdx-registry set-two-order-fills 
 			(get left-order-hash validation-data) 
-			(+ (get left-order-fill validation-data) fillable) 
+			(if (or (is-eq type-order-fok (get type left-extra-data)) (is-eq type-order-ioc (get type left-extra-data))) (get maximum-fill left-order) (+ (get left-order-fill validation-data) fillable)) 
 			(get right-order-hash validation-data) 
-			(+ (get right-order-fill validation-data) fillable)
+			(if (or (is-eq type-order-fok (get type right-extra-data)) (is-eq type-order-ioc (get type right-extra-data))) (get maximum-fill right-order) (+ (get right-order-fill validation-data) fillable))
 		))
 		(ok 
 			{ 
