@@ -149,6 +149,8 @@ Clarinet.test({
       'right-order-hash': right_order_hash,
       'left-order-make': types.uint(14e8),
       'right-order-make': types.uint(1e8),
+      'left-extra-data': '{risk: false, stop: u0, time: u1, type: u0}',
+      'right-extra-data': '{risk: false, stop: u0, time: u2, type: u0}',
     });
   },
 });
