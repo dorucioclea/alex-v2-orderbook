@@ -27,8 +27,6 @@
 (define-constant err-stop-not-triggered (err u5009))
 (define-constant err-invalid-order-type (err u5010))
 (define-constant err-cancel-authorisation-failed (err u5011))
-(define-constant err-left-order-cancelled (err u5012))
-(define-constant err-right-order-cancelled (err u5013))
 
 ;; 6000-6999: oracle errors
 (define-constant err-untrusted-oracle (err u6000))
@@ -43,8 +41,6 @@
 (define-data-var contract-owner principal tx-sender)
 (define-map authorised-senders principal bool)
 
-(define-map cancelled-orders (buff 32) bool)
-
 (define-map trusted-oracles (buff 33) bool)
 (define-map oracle-symbols uint (buff 32))
 (define-map triggered-orders (buff 32) bool)
@@ -55,10 +51,6 @@
 
 (define-read-only (is-order-triggered (order-hash (buff 32)))
 	(default-to false (map-get? triggered-orders order-hash))
-)
-
-(define-read-only (is-order-cancelled (order-hash (buff 32)))
-	(default-to false (map-get? cancelled-orders order-hash))
 )
 
 (define-constant serialized-key-cancel (serialize-tuple-key "cancel"))
@@ -111,7 +103,8 @@
 			) 
 			err-cancel-authorisation-failed
 		)
-		(ok (map-set cancelled-orders order-hash true))
+		;; cancel means no more fill, so setting its fill to maximum-fill achieve it.
+		(contract-call? .stxdx-registry set-order-fill order-hash (get maximum-fill order))	
 	)
 )
 
@@ -328,9 +321,8 @@
 			(right-extra-data (try! (extra-data-to-tuple (get extra-data right-order))))
 		)
 		(try! (is-authorised-sender))
-		;; both orders are not cancelled	
-		(asserts! (not (is-order-cancelled left-order-hash)) err-left-order-cancelled)
-		(asserts! (not (is-order-cancelled right-order-hash)) err-right-order-cancelled) 
+		;; there are more fills to do
+		(match fill value (asserts! (>= fillable value) err-maximum-fill-reached) (asserts! (> fillable u0) err-maximum-fill-reached))		
 		;; both orders are not expired
 		(asserts! (< block-height (get expiration-height left-order)) err-left-order-expired)
 		(asserts! (< block-height (get expiration-height right-order)) err-right-order-expired)				
@@ -400,13 +392,11 @@
 					(asserts! (if is-buy (< (get value oracle-data) (get stop right-extra-data)) (> (get value oracle-data) (get stop right-extra-data))) err-stop-not-triggered)
 				)				
 			)
-		)			
-
-		(match fill value (asserts! (>= fillable value) err-maximum-fill-reached) (asserts! (> fillable u0) err-maximum-fill-reached))
+		)		
 	
 		(asserts! (validate-authorisation left-order-fill (get maker left-user) (get maker-pubkey left-user) left-order-hash left-signature) err-left-authorisation-failed)
 		(asserts! (validate-authorisation right-order-fill (get maker right-user) (get maker-pubkey right-user) right-order-hash right-signature) err-right-authorisation-failed)
-		
+
 		(ok
 			{
 			left-order-hash: left-order-hash,
