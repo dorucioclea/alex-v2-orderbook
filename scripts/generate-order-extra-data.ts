@@ -12,10 +12,10 @@
 // }
 
 import {
-  bufferCV,
   falseCV,
   serializeCV,
   trueCV,
+  tupleCV,
   uintCV,
 } from '@stacks/transactions';
 
@@ -38,18 +38,12 @@ function serialiseExtraData(extra_data: { [key: string]: any }) {
     time: uintCV,
     type: uintCV,
   };
-
-  let _list: Buffer[] = [];
-
+  const dataTuple: { [key: string]: any } = {};
   for (const [key, func] of Object.entries(expected_struct))
-    if (key in extra_data) {
-      _list.push(serializeCV(bufferCV(Buffer.from(key, 'ascii'))));
-      _list.push(serializeCV(func(extra_data[key])));
-    } else {
-      throw new Error(`Extra data object missing '${key}' field`);
-    }
+    if (key in extra_data) dataTuple[key] = func(extra_data[key]);
+    else throw new Error(`Order object missing '${key}' field`);
 
-  return Buffer.concat(_list);
+  return serializeCV(tupleCV(dataTuple));
 }
 
 let extra_data: any;
@@ -61,3 +55,26 @@ try {
 }
 
 console.log('0x' + serialiseExtraData(extra_data).toString('hex'));
+
+//   let _list: Buffer[] = [];
+
+//   for (const [key, func] of Object.entries(expected_struct))
+//     if (key in extra_data) {
+//       _list.push(serializeCV(bufferCV(Buffer.from(key, 'ascii'))));
+//       _list.push(serializeCV(func(extra_data[key])));
+//     } else {
+//       throw new Error(`Extra data object missing '${key}' field`);
+//     }
+
+//   return Buffer.concat(_list);
+// }
+
+// let extra_data: any;
+// try {
+//   extra_data = JSON.parse(process.argv[2]);
+// } catch (error) {
+//   console.log('Invalid JSON');
+//   process.exit(1);
+// }
+
+// console.log('0x' + serialiseExtraData(extra_data).toString('hex'));
