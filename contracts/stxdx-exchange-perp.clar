@@ -43,6 +43,8 @@
 	}
 )
 
+(define-map child-orders (buff 32) bool)
+
 (define-private (is-contract-owner)
 	(ok (asserts! (is-eq (var-get contract-owner) tx-sender) err-unauthorised-caller))
 )
@@ -74,6 +76,7 @@
 (define-private (validate-authorisation (fills uint) (maker principal) (maker-pubkey (buff 33)) (hash (buff 32)) (signature (buff 65)))
 	(begin
 		(or
+
 			(> fills u0)
 			(is-eq maker tx-sender)
 			(and (is-eq (len signature) u0) (contract-call? .stxdx-registry get-order-approval maker hash))
@@ -321,6 +324,7 @@
 					(parent-order (get parent left-order))
 					(child-hash (get hash left-parent-extra))
 				)
+				(map-set child-orders child-hash true)
 				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker parent-order) child-hash true)))
 				;; TODO: can a duplicate enter the map?
 				(map-set 
