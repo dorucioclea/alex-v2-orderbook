@@ -14,7 +14,7 @@ depends_on = []
 
 [contracts.stxdx-exchange-zero]
 path = "contracts/stxdx-exchange-zero.clar"
-depends_on = ["stxdx-registry", "trait-ownable", "stxdx-utils", "stxdx-wallet-zero"]
+depends_on = ["stxdx-registry", "trait-ownable", "stxdx-utils", "stxdx-wallet-zero", "redstone-verify"]
 
 [contracts.stxdx-registry]
 path = "contracts/stxdx-registry.clar"
