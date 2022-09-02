@@ -626,6 +626,7 @@
 		(asserts! (is-eq (element-at extra-data u2) (some 0x00)) err-invalid-extra-data-type)
 		(asserts! (is-eq (element-at extra-data u3) (some 0x00)) err-invalid-extra-data-type)
 		(asserts! (is-eq (element-at extra-data u4) (some 0x04)) err-invalid-extra-data-type)
+
 		;; key 'risk'
 		(asserts! (is-eq (element-at extra-data u5) (some 0x04)) err-invalid-extra-data-type)
 		(asserts! (is-eq (element-at extra-data u6) (some (string-ascii-to-byte "r"))) err-invalid-extra-data-key)
@@ -660,7 +661,6 @@
 		(asserts! (is-eq (element-at extra-data u59) (some (string-ascii-to-byte "e"))) err-invalid-extra-data-key)
 		;; value uint
 		(asserts! (is-eq (element-at extra-data u60) (some type-id-uint)) err-invalid-extra-data-type)
-		
 
 		(ok {
 			risk: (is-eq (element-at extra-data u10) (some type-id-true)),

@@ -12,6 +12,7 @@
 // }
 
 import {
+  bufferCV,
   falseCV,
   serializeCV,
   trueCV,
@@ -56,25 +57,31 @@ try {
 
 console.log('0x' + serialiseExtraData(extra_data).toString('hex'));
 
-//   let _list: Buffer[] = [];
+function serialiseExtraData2(extra_data: { [key: string]: any }) {
+  const expected_struct = {
+    risk: (input: boolean) => (input ? trueCV() : falseCV()),
+    stop: uintCV,
+    time: uintCV,
+    type: uintCV,
+  };
+  let _list: Buffer[] = [];
+  _list.push(toBuffer('0x0c00000004'));
+  for (const [key, func] of Object.entries(expected_struct))
+    if (key in extra_data) {
+      _list.push(serializeCV(bufferCV(Buffer.from(key, 'ascii'))));
+      _list.push(serializeCV(func(extra_data[key])));
+    } else {
+      throw new Error(`Extra data object missing '${key}' field`);
+    }
 
-//   for (const [key, func] of Object.entries(expected_struct))
-//     if (key in extra_data) {
-//       _list.push(serializeCV(bufferCV(Buffer.from(key, 'ascii'))));
-//       _list.push(serializeCV(func(extra_data[key])));
-//     } else {
-//       throw new Error(`Extra data object missing '${key}' field`);
-//     }
+  return Buffer.concat(_list);
+}
 
-//   return Buffer.concat(_list);
-// }
+try {
+  extra_data = JSON.parse(process.argv[2]);
+} catch (error) {
+  console.log('Invalid JSON');
+  process.exit(1);
+}
 
-// let extra_data: any;
-// try {
-//   extra_data = JSON.parse(process.argv[2]);
-// } catch (error) {
-//   console.log('Invalid JSON');
-//   process.exit(1);
-// }
-
-// console.log('0x' + serialiseExtraData(extra_data).toString('hex'));
+console.log('0x' + serialiseExtraData2(extra_data).toString('hex'));
