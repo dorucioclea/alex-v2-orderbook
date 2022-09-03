@@ -38,6 +38,8 @@
 (define-constant type-order-fok u1)
 (define-constant type-order-ioc u2)
 
+(define-constant ONE_8 u100000000)
+
 (define-data-var contract-owner principal tx-sender)
 (define-map authorised-senders principal bool)
 
@@ -463,7 +465,7 @@
 		(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer amount (get maker order) taker (get maker-asset order)) err-asset-contract-call-failed))
 		(and
 			(> (get sender-fee order) u0)
-			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer (get sender-fee order) (get maker order) (get sender order) u1) err-sender-fee-payment-failed))
+			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer (mul-down (get sender-fee order) amount) (get maker order) (get sender order) (get maker-asset order)) err-sender-fee-payment-failed))
 		)
 		(ok true)
 	)
@@ -724,6 +726,10 @@
 			
 		})
 	)
+)
+
+(define-read-only (mul-down (a uint) (b uint))
+    (/ (* a b) ONE_8)
 )
 
 (define-constant type-id-uint 0x01)
