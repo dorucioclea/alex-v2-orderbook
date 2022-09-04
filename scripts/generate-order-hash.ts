@@ -4,10 +4,11 @@
 // DO NOT USE REAL SEED PHRASES OR PRIVATE KEYS.
 
 import {
-  bufferCV,
   contractPrincipalCV,
+  falseCV,
   serializeCV,
   standardPrincipalCV,
+  trueCV,
   tupleCV,
   TupleCV,
   uintCV,
@@ -40,12 +41,15 @@ function orderToTupleCV(order: { [key: string]: any }) {
     maker: uintCV,
     'maker-asset': uintCV,
     'taker-asset': uintCV,
-    'maker-asset-data': (input: string) => bufferCV(toBuffer(input)),
-    'taker-asset-data': (input: string) => bufferCV(toBuffer(input)),
+    'maker-asset-data': uintCV,
+    'taker-asset-data': uintCV,
     'maximum-fill': uintCV,
     'expiration-height': uintCV,
-    'extra-data': (input: string) => bufferCV(toBuffer(input)),
     salt: uintCV,
+    risk: (input: boolean) => (input ? trueCV() : falseCV()),
+    stop: uintCV,
+    timestamp: uintCV,
+    type: uintCV,
   };
   const orderTuple: { [key: string]: any } = {};
   for (const [key, func] of Object.entries(expected_struct))
