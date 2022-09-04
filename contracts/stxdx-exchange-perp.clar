@@ -43,6 +43,8 @@
 	}
 )
 
+(define-map child-orders (buff 32) bool)
+
 (define-private (is-contract-owner)
 	(ok (asserts! (is-eq (var-get contract-owner) tx-sender) err-unauthorised-caller))
 )
@@ -74,6 +76,7 @@
 (define-private (validate-authorisation (fills uint) (maker principal) (maker-pubkey (buff 33)) (hash (buff 32)) (signature (buff 65)))
 	(begin
 		(or
+			(default-to false (map-get? child-orders hash))
 			(> fills u0)
 			(is-eq maker tx-sender)
 			(and (is-eq (len signature) u0) (contract-call? .stxdx-registry get-order-approval maker hash))
@@ -217,11 +220,7 @@
 		)
 		(asserts! (< block-height (get expiration-height left-parent)) err-left-order-expired)
 		(asserts! (< block-height (get expiration-height right-parent)) err-right-order-expired)
-		(match fill
-			value
-			(asserts! (>= fillable value) err-maximum-fill-reached)
-			(asserts! (> fillable u0) err-maximum-fill-reached)
-		)			
+		(match fill value (asserts! (>= fillable value) err-maximum-fill-reached) (asserts! (> fillable u0) err-maximum-fill-reached))			
 		(asserts! (validate-authorisation left-order-fill (get maker left-user) (get maker-pubkey left-user) left-order-hash left-signature) err-left-authorisation-failed)
 		(asserts! (validate-authorisation right-order-fill (get maker right-user) (get maker-pubkey right-user) right-order-hash right-signature) err-right-authorisation-failed)
 		(ok
@@ -308,6 +307,8 @@
 			(fillable (match fill value value (get fillable validation-data)))
 			(left-parent-make (get left-order-make validation-data))
 			(right-parent-make (get right-order-make validation-data))
+			(left-parent-extra (get left-order-extra validation-data))
+			(right-parent-extra (get right-order-extra validation-data))
 		)		
 
 		(match (get child left-order)
@@ -317,9 +318,9 @@
 				;; extra-data of parent contains the hash of child, for validation
 			 	(
 					(parent-order (get parent left-order))
-					(child-hash (unwrap-panic (as-max-len? (get extra-data parent-order) u32)))
+					(child-hash (get hash left-parent-extra))
 				)
-				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker parent-order) child-hash true)))
+				(map-set child-orders child-hash true)
 				;; TODO: can a duplicate enter the map?
 				(map-set 
 					positions
@@ -336,12 +337,11 @@
 				(try! (settle-to-exchange parent-order (* fillable (- left-parent-make (try! (asset-data-to-uint (get taker-asset-data left-child)))))))
 			)
 			(let 
-				;; if child order does not exist, then it is to reduce position
+				;; if child order does not exist, then it is to reduce position (or liquidation by the child order)
 				;; extra-data of parent contains the hash of the initiating order, so we can settle against that.
-				;; TODO: or it chould be child order being executed (i.e. liquidation)
 				(
 					(parent-order (get parent left-order))
-					(target-order-hash (unwrap-panic (as-max-len? (get extra-data parent-order) u32)))
+					(target-order-hash (get hash left-parent-extra))
 					(target-order (unwrap! (map-get? positions target-order-hash) err-to-be-defined))
 				)
 				(asserts! (is-eq (get maker parent-order) (get maker target-order)) err-to-be-defined)
@@ -349,58 +349,13 @@
 				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset target-order)) err-to-be-defined)
 				;; numeraire must be the same
 				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data target-order)) err-to-be-defined)
-				
-				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker parent-order) (get child-order-hash target-order) false)))
+								
+				(map-delete child-orders target-order-hash)
 				(map-delete positions target-order-hash)
 				(try! (settle-from-exchange parent-order (* fillable (- right-parent-make (try! (asset-data-to-uint (get maker-asset-data target-order)))))))
 			)
 		)	
-
-		(match (get child right-order)
-			right-child
-			(let 
-				;; if child order exists, then it is to add position
-				;; extra-data of parent contains the hash of child, for validation
-				;; TODO: or it chould be child order being executed (i.e. liquidation)
-			 	(
-					(parent-order (get parent right-order))
-					(child-hash (unwrap-panic (as-max-len? (get extra-data parent-order) u32)))
-				)
-				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker parent-order) child-hash true)))
-				;; TODO: can a duplicate enter the map?
-				(map-set 
-					positions
-					(get right-order-hash validation-data) 
-					{ 
-						maker: (get maker parent-order), 
-						maker-asset: (get maker-asset parent-order),
-						taker-asset: (get taker-asset parent-order),
-						maker-asset-data: (serialize-uint right-parent-make), 
-						taker-asset-data: (get taker-asset-data parent-order),
-						child-order-hash: child-hash 
-					}
-				)
-				(try! (settle-to-exchange parent-order (* fillable (- right-parent-make (try! (asset-data-to-uint (get taker-asset-data right-child)))))))
-			)
-			(let 
-				;; if child order does not exist, then it is to reduce position
-				;; extra-data of parent contains the hash of the initiating order, so we can settle against that.
-				(
-					(parent-order (get parent right-order))
-					(target-order-hash (unwrap-panic (as-max-len? (get extra-data parent-order) u32)))
-					(target-order (unwrap! (map-get? positions target-order-hash) err-to-be-defined))
-				)
-				(asserts! (is-eq (get maker parent-order) (get maker target-order)) err-to-be-defined)
-				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset target-order)) err-to-be-defined)
-				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset target-order)) err-to-be-defined)
-				;; numeraire must be the same
-				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data target-order)) err-to-be-defined)
-				
-				(try! (as-contract (contract-call? .stxdx-registry set-order-approval-on-behalf (get maker parent-order) (get child-order-hash target-order) false)))
-				(map-delete positions target-order-hash)
-				(try! (settle-from-exchange parent-order (* fillable (- left-parent-make (try! (asset-data-to-uint (get maker-asset-data target-order)))))))
-			)
-		)				
+		;; TODO: right child order				
 
 		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))				
 		(ok { fillable: fillable, left-order-make: left-parent-make, right-order-make: right-parent-make })
