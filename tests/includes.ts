@@ -24,6 +24,7 @@ const noneCV = types.none;
 const someCV = types.some;
 const bufferCV = types.buff;
 const tupleCV = types.tuple;
+const boolCV = types.bool;
 
 const buff = (input: string | ArrayBuffer) =>
   typeof input === 'string'
@@ -39,17 +40,21 @@ export function orderToTupleCV(order: { [key: string]: any }) {
     maker: uintCV,
     'maker-asset': uintCV,
     'taker-asset': uintCV,
-    'maker-asset-data': buff,
-    'taker-asset-data': buff,
+    'maker-asset-data': uintCV,
+    'taker-asset-data': uintCV,
     'maximum-fill': uintCV,
     'expiration-height': uintCV,
-    'extra-data': buff,
     salt: uintCV,
+    risk: boolCV,
+    stop: uintCV,
+    timestamp: uintCV,
+    type: uintCV,
   };
   const orderTuple: { [key: string]: any } = {};
   for (const [key, func] of Object.entries(expected_struct))
     if (key in order) orderTuple[key] = func(order[key]);
-    else throw new Error(`Order object missing '${key}' field`);
+    else throw new Error(`Order object missing ${key} field`);
+
   return tupleCV(orderTuple);
 }
 
