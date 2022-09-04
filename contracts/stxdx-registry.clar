@@ -165,13 +165,6 @@
 	(ok (map-set order-approvals {maker: tx-sender, order-hash: order-hash} approved))
 )
 
-(define-public (set-order-approval-on-behalf (maker uint) (order-hash (buff 32)) (approved bool))
-	(begin
-		(try! (valid-exchange-caller))
-		(ok (map-set order-approvals {maker: (try! (user-maker-from-id-or-fail maker)), order-hash: order-hash} approved))
-	)
-)
-
 (define-public (approve-exchange (exchange principal) (approved bool))
 	(begin
 		(try! (is-contract-owner))
