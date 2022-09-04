@@ -11,6 +11,8 @@
 (define-constant err-right-authorisation-failed (err u3008))
 (define-constant err-maximum-fill-reached (err u3009))
 (define-constant err-maker-not-tx-sender (err u3010))
+(define-constant err-invalid-timestamp (err u3011))
+(define-constant err-unknown-asset-id (err u3501))
 
 ;; 4000-4999: registry errors
 (define-constant err-unauthorised-caller (err u4000))
@@ -19,6 +21,13 @@
 (define-constant err-asset-data-too-long (err u5003))
 (define-constant err-sender-fee-payment-failed (err u5007))
 (define-constant err-asset-contract-call-failed (err u5008))
+(define-constant err-stop-not-triggered (err u5009))
+(define-constant err-invalid-order-type (err u5010))
+(define-constant err-cancel-authorisation-failed (err u5011))
+
+;; 6000-6999: oracle errors
+(define-constant err-untrusted-oracle (err u6000))
+(define-constant err-no-oracle-data (err u6001))
 
 (define-constant err-to-be-defined (err u99999))
 
@@ -37,13 +46,131 @@
 		maker: uint, 
 		maker-asset: uint, 
 		taker-asset: uint, 
-		maker-asset-data: (buff 256), 
-		taker-asset-data: (buff 256),
-		child-order-hash: (buff 32)
+		maker-asset-data: uint, 
+		taker-asset-data: uint,
+		linked-order-hash: (buff 32)
 	}
 )
 
-(define-map child-orders (buff 32) bool)
+(define-map linked-orders (buff 32) bool)
+
+(define-map trusted-oracles (buff 33) bool)
+(define-map oracle-symbols uint (buff 32))
+(define-map triggered-orders (buff 32) bool)
+
+(define-read-only (is-trusted-oracle (pubkey (buff 33)))
+	(default-to false (map-get? trusted-oracles pubkey))
+)
+
+(define-read-only (is-order-triggered (order-hash (buff 32)))
+	(default-to false (map-get? triggered-orders order-hash))
+)
+
+(define-constant serialized-key-cancel (serialize-tuple-key "cancel"))
+(define-constant serialized-key-hash (serialize-tuple-key "hash"))
+(define-constant serialized-cancel-header (concat type-id-tuple (uint32-to-buff-be u2)))
+
+(define-private (hash-cancel-order (order-hash (buff 32)))
+	(sha256
+		(concat serialized-cancel-header
+
+		(concat serialized-key-cancel
+		(concat (serialize-bool true)
+
+		(concat serialized-key-hash 
+				(serialize-buff order-hash)
+		))))
+	)
+)
+
+(define-public (cancel-order 
+	(order
+		{
+		sender: uint,
+		sender-fee: uint,
+		maker: uint,
+		maker-asset: uint,
+		taker-asset: uint,
+		maker-asset-data: uint,
+		taker-asset-data: uint,
+		maximum-fill: uint,
+		expiration-height: uint,
+		salt: uint,
+		risk: bool,
+		stop: uint,
+		timestamp: uint,
+		type: uint,
+		linked-hash: (buff 32)
+		}
+	)
+	(signature (buff 65)))
+	(let 
+		(
+			(order-hash (hash-order order))
+			(cancel-hash (hash-cancel-order order-hash))
+			(maker-pubkey (get maker-pubkey (try! (contract-call? .stxdx-registry user-from-id-or-fail (get maker order)))))
+		)
+		(try! (is-authorised-sender))	
+		(asserts! 
+			(or
+				(is-eq type-order-fok (get type order))
+				(is-eq type-order-ioc (get type order))
+				(is-eq (secp256k1-recover? (sha256 (concat structured-data-prefix (concat message-domain cancel-hash))) signature) (ok maker-pubkey))
+			) 
+			err-cancel-authorisation-failed
+		)
+		;; cancel means no more fill, so setting its fill to maximum-fill achieve it.
+		(contract-call? .stxdx-registry set-order-fill order-hash (get maximum-fill order))	
+	)
+)
+
+(define-private (cancel-order-iter 
+	(one-cancel-order
+		{ 
+			order: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) },
+			signature: (buff 65)
+		}
+	))
+	(cancel-order (get order one-cancel-order) (get signature one-cancel-order))
+)
+
+(define-public (cancel-order-many
+	(cancel-order-list
+		(list 200
+			{ 
+				order: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) },
+				signature: (buff 65)
+			}		
+		) 
+	))
+	(ok (map cancel-order-iter cancel-order-list))
+)
+
+;; #[allow(unchecked_data)]
+(define-public (set-trusted-oracle (pubkey (buff 33)) (trusted bool))
+	(begin
+		(try! (is-contract-owner))
+		(ok (map-set trusted-oracles pubkey trusted))
+	)
+)
+
+(define-read-only (get-oracle-symbol-or-fail (asset-id uint))
+	(ok (unwrap! (map-get? oracle-symbols asset-id) err-unknown-asset-id))
+)
+
+(define-public (set-oracle-symbol (asset-id uint) (symbol (buff 32)))
+	(begin 
+		(try! (is-contract-owner))
+		(ok (map-set oracle-symbols asset-id symbol))
+	)
+)
+
+(define-public (remove-oracle-symbol (asset-id uint))
+	(begin 
+		(try! (is-contract-owner))
+		(ok (map-delete oracle-symbols asset-id))
+	)
+)
 
 (define-private (is-contract-owner)
 	(ok (asserts! (is-eq (var-get contract-owner) tx-sender) err-unauthorised-caller))
@@ -76,7 +203,7 @@
 (define-private (validate-authorisation (fills uint) (maker principal) (maker-pubkey (buff 33)) (hash (buff 32)) (signature (buff 65)))
 	(begin
 		(or
-			(default-to false (map-get? child-orders hash))
+			(default-to false (map-get? linked-orders hash))
 			(> fills u0)
 			(is-eq maker tx-sender)
 			(and (is-eq (len signature) u0) (contract-call? .stxdx-registry get-order-approval maker hash))
@@ -94,19 +221,43 @@
 (define-constant serialized-key-taker-asset-data (serialize-tuple-key "taker-asset-data"))
 (define-constant serialized-key-maximum-fill (serialize-tuple-key "maximum-fill"))
 (define-constant serialized-key-expiration-height (serialize-tuple-key "expiration-height"))
-(define-constant serialized-key-extra-data (serialize-tuple-key "extra-data"))
 (define-constant serialized-key-salt (serialize-tuple-key "salt"))
-(define-constant serialized-order-header (concat type-id-tuple (uint32-to-buff-be u11)))
+(define-constant serialized-key-risk (serialize-tuple-key "risk"))
+(define-constant serialized-key-stop (serialize-tuple-key "stop"))
+(define-constant serialized-key-timestamp (serialize-tuple-key "timestamp"))
+(define-constant serialized-key-type (serialize-tuple-key "type"))
+(define-constant serialized-key-linked-hash (serialize-tuple-key "linked-hash"))
+(define-constant serialized-order-header (concat type-id-tuple (uint32-to-buff-be u15)))
 
-(define-read-only (hash-order (order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint }))
+(define-read-only (hash-order 
+	(order
+		{
+		sender: uint,
+		sender-fee: uint,
+		maker: uint,
+		maker-asset: uint,
+		taker-asset: uint,
+		maker-asset-data: uint,
+		taker-asset-data: uint,
+		maximum-fill: uint,
+		expiration-height: uint,
+		salt: uint,
+		risk: bool,
+		stop: uint,
+		timestamp: uint,
+		type: uint,
+		linked-hash: (buff 32)
+		}
+	)
+	)
 	(sha256
 		(concat serialized-order-header
 
 		(concat serialized-key-expiration-height
 		(concat (serialize-uint (get expiration-height order))
 
-		(concat serialized-key-extra-data
-		(concat (serialize-buff (get extra-data order))
+		(concat serialized-key-linked-hash
+		(concat (serialize-buff (get linked-hash order))
 
 		(concat serialized-key-maker
 		(concat (serialize-uint (get maker order))
@@ -115,10 +266,13 @@
 		(concat (serialize-uint (get maker-asset order))
 
 		(concat serialized-key-maker-asset-data
-		(concat (serialize-buff (get maker-asset-data order))
+		(concat (serialize-uint (get maker-asset-data order))
 
 		(concat serialized-key-maximum-fill
 		(concat (serialize-uint (get maximum-fill order))
+
+		(concat serialized-key-risk
+		(concat (serialize-bool (get risk order))
 
 		(concat serialized-key-salt
 		(concat (serialize-uint (get salt order))
@@ -127,33 +281,44 @@
 		(concat (serialize-uint (get sender order))
 
 		(concat serialized-key-sender-fee
-		(concat (serialize-uint (get sender-fee order))
+		(concat (serialize-uint (get sender-fee order))	
+
+		(concat serialized-key-stop 
+		(concat (serialize-uint (get stop order))
 		
 		(concat serialized-key-taker-asset
 		(concat (serialize-uint (get taker-asset order))
 
 		(concat serialized-key-taker-asset-data
-				(serialize-buff (get taker-asset-data order))		
+		(concat (serialize-uint (get taker-asset-data order))
 
-		))))))))))))))))))))))
+		(concat serialized-key-timestamp
+		(concat (serialize-uint (get timestamp order))
+
+		(concat serialized-key-type
+				(serialize-uint (get type order))
+
+		))))))))))))))))))))))))))))))
 	)
 )
 
 (define-read-only (validate-match
 	(left-order
 		{
-			parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint },
-			child: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint })
+			parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) },
+			linked: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) })
 		}			
 	)
 	(right-order
 		{
-			parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint },
-			child: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint })
+			parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) },
+			linked: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) })
 		}
 	)
 	(left-signature (buff 65))
 	(right-signature (buff 65))
+	(left-oracle-data (optional { timestamp: uint, value: uint, signature: (buff 65) }))
+	(right-oracle-data (optional { timestamp: uint, value: uint, signature: (buff 65) }))		
 	(fill (optional uint))
 	)
 	(let
@@ -169,58 +334,109 @@
 			(left-order-fill (get order-1 order-fills))
 			(right-order-fill (get order-2 order-fills))
 			(fillable (min (- (get maximum-fill left-parent) left-order-fill) (- (get maximum-fill right-parent) right-order-fill)))
-			(left-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data left-parent))))
-			(left-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data left-parent))))
-			(right-maker-asset-amount (try! (asset-data-to-uint (get maker-asset-data right-parent))))
-			(right-taker-asset-amount (try! (asset-data-to-uint (get taker-asset-data right-parent))))
-			(left-extra-data (try! (extra-data-to-tuple (get extra-data left-order))))
-			(right-extra-data (try! (extra-data-to-tuple (get extra-data right-order))))			
 		)
-		(try! (is-authorised-sender))				
+		(try! (is-authorised-sender))
+		;; there are more fills to do
+		(match fill value (asserts! (>= fillable value) err-maximum-fill-reached) (asserts! (> fillable u0) err-maximum-fill-reached))		
+		;; both orders are not expired
+		(asserts! (< block-height (get expiration-height left-parent)) err-left-order-expired)
+		(asserts! (< block-height (get expiration-height right-parent)) err-right-order-expired)				
+		;; assets to be exchanged match
 		(asserts! (is-eq (get maker-asset left-parent) (get taker-asset right-parent)) err-maker-asset-mismatch)
 		(asserts! (is-eq (get taker-asset left-parent) (get maker-asset right-parent)) err-taker-asset-mismatch)
+		;; left-parent must be older than right-parent
+		(asserts! (< (get timestamp left-parent) (get timestamp right-parent)) err-invalid-timestamp)
 		
-		(match (get child left-order)
-			left-child 
+		(match (get linked left-order)
+			left-linked 
 			(begin 
-				;; validate parent-child data
-				(asserts! (is-eq (get maker left-parent) (get maker left-child)) err-to-be-defined)
-				(asserts! (is-eq (get maker-asset left-parent) (get taker-asset left-child)) err-to-be-defined)
-				(asserts! (is-eq (get taker-asset left-parent) (get maker-asset left-child)) err-to-be-defined)
-				(asserts! (is-eq (get maximum-fill left-parent) (get maximum-fill left-child)) err-to-be-defined)
-				(asserts! (is-eq (get expiration-height left-child) u340282366920938463463374607431768211455) err-to-be-defined)
-				(asserts! (is-eq (hash-order left-child) (get hash left-extra-data)) err-to-be-defined)
-				(asserts! (is-eq type-order-fok (get type left-extra-data)) err-to-be-defined)
+				;; validate parent-linked data
+				(asserts! (is-eq (get maker left-parent) (get maker left-linked)) err-to-be-defined)
+				(asserts! (is-eq (get maker-asset left-parent) (get taker-asset left-linked)) err-to-be-defined)
+				(asserts! (is-eq (get taker-asset left-parent) (get maker-asset left-linked)) err-to-be-defined)
+				(asserts! (is-eq (get maximum-fill left-parent) (get maximum-fill left-linked)) err-to-be-defined)
+				(asserts! (is-eq (get expiration-height left-linked) u340282366920938463463374607431768211455) err-to-be-defined)
+				(asserts! (is-eq (hash-order left-linked) (get linked-hash left-parent)) err-to-be-defined)
+				(asserts! (is-eq type-order-fok (get type left-parent)) err-to-be-defined)
 			)
 			(asserts! true err-to-be-defined)
 		)
-		(match (get child right-order)
-			right-child	
+		(match (get linked right-order)
+			right-linked	
 			(begin		
-				;; validate parent-child data
-				(asserts! (is-eq (get maker right-parent) (get maker right-child)) err-to-be-defined)		
-				(asserts! (is-eq (get maker-asset right-parent) (get taker-asset right-child)) err-to-be-defined)		
-				(asserts! (is-eq (get taker-asset right-parent) (get maker-asset right-child)) err-to-be-defined)		
-				(asserts! (is-eq (get maximum-fill right-parent) (get maximum-fill right-child)) err-to-be-defined)		
-				(asserts! (is-eq (get expiration-height right-child) u340282366920938463463374607431768211455) err-to-be-defined)		
-				(asserts! (is-eq (hash-order right-child) (get hash right-extra-data)) err-to-be-defined)
-				(asserts! (is-eq type-order-fok (get type right-extra-data)) err-to-be-defined)
+				;; validate parent-linked data
+				(asserts! (is-eq (get maker right-parent) (get maker right-linked)) err-to-be-defined)		
+				(asserts! (is-eq (get maker-asset right-parent) (get taker-asset right-linked)) err-to-be-defined)		
+				(asserts! (is-eq (get taker-asset right-parent) (get maker-asset right-linked)) err-to-be-defined)		
+				(asserts! (is-eq (get maximum-fill right-parent) (get maximum-fill right-linked)) err-to-be-defined)		
+				(asserts! (is-eq (get expiration-height right-linked) u340282366920938463463374607431768211455) err-to-be-defined)		
+				(asserts! (is-eq (hash-order right-linked) (get linked-hash right-parent)) err-to-be-defined)
+				(asserts! (is-eq type-order-fok (get type right-parent)) err-to-be-defined)
 			)
 			(asserts! true err-to-be-defined)
 		)
-		
 		;; one side matches and the taker of the other side is smaller than maker.
 		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
 		(asserts! 
 			(or 
-				(and (is-eq left-maker-asset-amount right-taker-asset-amount) (<= left-taker-asset-amount right-maker-asset-amount))
-				(and (is-eq left-taker-asset-amount right-maker-asset-amount) (>= left-maker-asset-amount right-taker-asset-amount)) 
+				(and ;; both maker and taker are vanilla limit orders
+					(is-eq (get maker-asset-data left-parent) (get taker-asset-data right-parent))
+					(is-eq (get taker-asset-data left-parent) (get maker-asset-data right-parent))				
+				)				
+				(and ;; taker (right-parent) is a market-limit buyer (has to be either FOK or IOC)
+					(is-eq (get maker-asset-data left-parent) (get taker-asset-data right-parent))
+					(< (get taker-asset-data left-parent) (get maker-asset-data right-parent))
+					(or (is-eq (get type right-parent) type-order-fok) (is-eq (get type right-parent) type-order-ioc))
+			 	)
+				(and ;; taker (right-parent) is a market-limit seller (has to be either FOK or IOC)
+					(is-eq (get taker-asset-data left-parent) (get maker-asset-data right-parent))
+					(> (get maker-asset-data left-parent) (get taker-asset-data right-parent))
+					(or (is-eq (get type right-parent) type-order-fok) (is-eq (get type right-parent) type-order-ioc))
+				)
 			)
 			err-asset-data-mismatch
 		)
-		(asserts! (< block-height (get expiration-height left-parent)) err-left-order-expired)
-		(asserts! (< block-height (get expiration-height right-parent)) err-right-order-expired)
-		(match fill value (asserts! (>= fillable value) err-maximum-fill-reached) (asserts! (> fillable u0) err-maximum-fill-reached))			
+		;; stop limit order
+		(if (or (is-eq (get stop left-parent) u0) (is-order-triggered left-order-hash))
+			true
+			(let
+				(
+					(oracle-data (unwrap! left-oracle-data err-no-oracle-data))
+					(is-buy (is-some (map-get? oracle-symbols (get taker-asset left-parent))))
+					(symbol (try! (get-oracle-symbol-or-fail (if is-buy (get taker-asset left-parent) (get maker-asset left-parent)))))
+					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
+				)
+				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
+				(asserts! (< (get timestamp left-parent) (get timestamp oracle-data)) err-invalid-timestamp)				
+				(if (get risk left-parent) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
+					(begin
+						(asserts! (if is-buy (>= (get value oracle-data) (get stop left-parent)) (<= (get value oracle-data) (get stop left-parent))) err-stop-not-triggered)
+						(asserts! (or (is-eq (get type left-parent) type-order-fok) (is-eq (get type left-parent) type-order-ioc)) err-invalid-order-type)
+					)
+					(asserts! (if is-buy (< (get value oracle-data) (get stop left-parent)) (> (get value oracle-data) (get stop left-parent))) err-stop-not-triggered)
+				)				
+			)
+		)	
+		(if (or (is-eq (get stop right-parent) u0) (is-order-triggered right-order-hash))
+			true
+			(let
+				(
+					(oracle-data (unwrap! right-oracle-data err-no-oracle-data))
+					(is-buy (is-some (map-get? oracle-symbols (get taker-asset right-parent))))
+					(symbol (try! (get-oracle-symbol-or-fail (if is-buy (get taker-asset right-parent) (get maker-asset right-parent)))))
+					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
+				)
+				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
+				(asserts! (< (get timestamp right-parent) (get timestamp oracle-data)) err-invalid-timestamp)				
+				(if (get risk right-parent) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
+					(begin
+						(asserts! (if is-buy (>= (get value oracle-data) (get stop right-parent)) (<= (get value oracle-data) (get stop right-parent))) err-stop-not-triggered)
+						(asserts! (or (is-eq (get type right-parent) type-order-fok) (is-eq (get type right-parent) type-order-ioc)) err-invalid-order-type)
+					)
+					(asserts! (if is-buy (< (get value oracle-data) (get stop right-parent)) (> (get value oracle-data) (get stop right-parent))) err-stop-not-triggered)
+				)				
+			)
+		)	
 		(asserts! (validate-authorisation left-order-fill (get maker left-user) (get maker-pubkey left-user) left-order-hash left-signature) err-left-authorisation-failed)
 		(asserts! (validate-authorisation right-order-fill (get maker right-user) (get maker-pubkey right-user) right-order-hash right-signature) err-right-authorisation-failed)
 		(ok
@@ -230,28 +446,22 @@
 			left-order-fill: left-order-fill,
 			right-order-fill: right-order-fill,
 			fillable: fillable,
-			left-order-make: left-order-make,
-			right-order-make: right-order-make,
-			left-extra-data: left-extra-data,
-			right-extra-data: right-extra-data
+			left-order-make: (get maker-asset-data left-parent),
+			right-order-make: (get taker-asset-data left-parent),
 			}
 		)
 	)
 )
 
-(define-public (approve-order (order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint }))
+(define-public (approve-order (order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) }))
 	(begin
 		(asserts! (is-eq (try! (contract-call? .stxdx-registry user-maker-from-id-or-fail (get maker order))) tx-sender) err-maker-not-tx-sender)
 		(contract-call? .stxdx-registry set-order-approval (hash-order order) true)
 	)
 )
 
-(define-private (asset-data-to-uint (asset-data (buff 256)))
-	(match (as-max-len? asset-data u16) bytes (ok (contract-call? .stxdx-utils buff-to-uint bytes)) err-asset-data-too-long)
-)
-
 (define-private (settle-to-exchange 
-	(order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint })
+	(order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) })
 	(amount uint)	
 	)
 	(let 
@@ -268,7 +478,7 @@
 )
 
 (define-private (settle-from-exchange 
-	(order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint })
+	(order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) })
 	(amount uint)	
 	)
 	(let 
@@ -287,40 +497,40 @@
 (define-public (match-orders
 	(left-order
 		{
-			parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint },
-			child: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint })
+			parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) },
+			linked: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) })
 		}			
 	)
 	(right-order
 		{
-			parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint },
-			child: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint })
+			parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) },
+			linked: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) })
 		}
 	)
 	(left-signature (buff 65))
 	(right-signature (buff 65))
+	(left-oracle-data (optional { timestamp: uint, value: uint, signature: (buff 65) }))
+	(right-oracle-data (optional { timestamp: uint, value: uint, signature: (buff 65) }))		
 	(fill (optional uint))
 	)
 	(let
 		(
-			(validation-data (try! (validate-match left-order right-order left-signature right-signature fill)))
+			(validation-data (try! (validate-match left-order right-order left-signature right-signature left-oracle-data right-oracle-data fill)))
 			(fillable (match fill value value (get fillable validation-data)))
 			(left-parent-make (get left-order-make validation-data))
 			(right-parent-make (get right-order-make validation-data))
-			(left-parent-extra (get left-order-extra validation-data))
-			(right-parent-extra (get right-order-extra validation-data))
 		)		
 
-		(match (get child left-order)
-			left-child
+		(match (get linked left-order)
+			left-linked
 			(let 
-				;; if child order exists, then it is to add position
-				;; extra-data of parent contains the hash of child, for validation
+				;; if linked order exists, then it is to add position
+				;; extra-data of parent contains the hash of linked, for validation
 			 	(
 					(parent-order (get parent left-order))
-					(child-hash (get hash left-parent-extra))
+					(linked-hash (get linked-hash parent-order))
 				)
-				(map-set child-orders child-hash true)
+				(map-set linked-orders linked-hash true)
 				;; TODO: can a duplicate enter the map?
 				(map-set 
 					positions
@@ -329,33 +539,77 @@
 						maker: (get maker parent-order), 
 						maker-asset: (get maker-asset parent-order),
 						taker-asset: (get taker-asset parent-order),
-						maker-asset-data: (serialize-uint left-parent-make), 
+						maker-asset-data: left-parent-make, 
 						taker-asset-data: (get taker-asset-data parent-order),
-						child-order-hash: child-hash 
+						linked-order-hash: linked-hash 
 					}
 				)
-				(try! (settle-to-exchange parent-order (* fillable (- left-parent-make (try! (asset-data-to-uint (get taker-asset-data left-child)))))))
+				(try! (settle-to-exchange parent-order (* fillable (- left-parent-make (get taker-asset-data left-linked)))))
 			)
 			(let 
-				;; if child order does not exist, then it is to reduce position (or liquidation by the child order)
+				;; if linked order does not exist, then it is to reduce position (or liquidation by the linked order)
 				;; extra-data of parent contains the hash of the initiating order, so we can settle against that.
 				(
 					(parent-order (get parent left-order))
-					(target-order-hash (get hash left-parent-extra))
-					(target-order (unwrap! (map-get? positions target-order-hash) err-to-be-defined))
+					(linked-order-hash (get linked-hash parent-order))
+					(linked-order (unwrap! (map-get? positions linked-order-hash) err-to-be-defined))
 				)
-				(asserts! (is-eq (get maker parent-order) (get maker target-order)) err-to-be-defined)
-				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset target-order)) err-to-be-defined)
-				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset target-order)) err-to-be-defined)
+				(asserts! (is-eq (get maker parent-order) (get maker linked-order)) err-to-be-defined)
+				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset linked-order)) err-to-be-defined)
+				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset linked-order)) err-to-be-defined)
 				;; numeraire must be the same
-				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data target-order)) err-to-be-defined)
+				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data linked-order)) err-to-be-defined)
 								
-				(map-delete child-orders target-order-hash)
-				(map-delete positions target-order-hash)
-				(try! (settle-from-exchange parent-order (* fillable (- right-parent-make (try! (asset-data-to-uint (get maker-asset-data target-order)))))))
+				(map-delete linked-orders linked-order-hash)
+				(map-delete positions linked-order-hash)
+				(try! (settle-from-exchange parent-order (* fillable (- right-parent-make (get maker-asset-data linked-order)))))
 			)
 		)	
-		;; TODO: right child order				
+
+		(match (get linked right-order)
+			right-linked
+			(let 
+				;; if linked order exists, then it is to add position
+				;; extra-data of parent contains the hash of linked, for validation
+			 	(
+					(parent-order (get parent right-order))
+					(linked-hash (get linked-hash parent-order))
+				)
+				(map-set linked-orders linked-hash true)
+				;; TODO: can a duplicate enter the map?
+				(map-set 
+					positions
+					(get right-order-hash validation-data) 
+					{ 
+						maker: (get maker parent-order), 
+						maker-asset: (get maker-asset parent-order),
+						taker-asset: (get taker-asset parent-order),
+						maker-asset-data: right-parent-make, 
+						taker-asset-data: (get taker-asset-data parent-order),
+						linked-order-hash: linked-hash 
+					}
+				)
+				(try! (settle-to-exchange parent-order (* fillable (- right-parent-make (get taker-asset-data right-linked)))))
+			)
+			(let 
+				;; if linked order does not exist, then it is to reduce position (or liquidation by the linked order)
+				;; extra-data of parent contains the hash of the initiating order, so we can settle against that.
+				(
+					(parent-order (get parent right-order))
+					(linked-order-hash (get linked-hash parent-order))
+					(linked-order (unwrap! (map-get? positions linked-order-hash) err-to-be-defined))
+				)
+				(asserts! (is-eq (get maker parent-order) (get maker linked-order)) err-to-be-defined)
+				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset linked-order)) err-to-be-defined)
+				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset linked-order)) err-to-be-defined)
+				;; numeraire must be the same
+				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data linked-order)) err-to-be-defined)
+								
+				(map-delete linked-orders linked-order-hash)
+				(map-delete positions linked-order-hash)
+				(try! (settle-from-exchange parent-order (* fillable (- right-parent-make (get maker-asset-data linked-order)))))
+			)
+		)			
 
 		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))				
 		(ok { fillable: fillable, left-order-make: left-parent-make, right-order-make: right-parent-make })
@@ -377,6 +631,10 @@
 
 (define-read-only (serialize-uint (value uint))
 	(concat type-id-uint (uint128-to-buff-be value))
+)
+
+(define-read-only (serialize-bool (value bool))
+	(if value type-id-true type-id-false)
 )
 
 (define-read-only (serialize-buff (value (buff 256)))
@@ -432,194 +690,10 @@
 	(fold string-ascii-to-buff-iter str 0x)
 )
 
-
-;; Exports a tuple of the following type (size in bracket):
-;; {
-;; hash (4): (buff 32)
-;; risk (4): bool (1),
-;; stop (4): uint (16)
-;; time (4): uint (16),
-;; type (4): uint (16),
-;; }
-(define-read-only (extra-data-to-tuple (extra-data (buff 256)))
-    (begin  
-        ;; key 'hash'
-        (asserts! (is-eq (element-at extra-data u0) (some 0x04)) err-invalid-extra-data-type)
-        (asserts! (is-eq (element-at extra-data u1) (some (string-ascii-to-byte "h"))) err-invalid-extra-data-key)
-        (asserts! (is-eq (element-at extra-data u2) (some (string-ascii-to-byte "a"))) err-invalid-extra-data-key)
-        (asserts! (is-eq (element-at extra-data u3) (some (string-ascii-to-byte "s"))) err-invalid-extra-data-key)
-        (asserts! (is-eq (element-at extra-data u4) (some (string-ascii-to-byte "h"))) err-invalid-extra-data-key)
-        ;; value (buff 32)
-        (asserts! (is-eq (element-at extra-data u5) (some type-id-buff)) err-invalid-extra-data-type)
-
-        ;; key 'risk'
-        (asserts! (is-eq (element-at extra-data u37) (some 0x04)) err-invalid-extra-data-type)
-        (asserts! (is-eq (element-at extra-data u38) (some (string-ascii-to-byte "r"))) err-invalid-extra-data-key)
-        (asserts! (is-eq (element-at extra-data u39) (some (string-ascii-to-byte "i"))) err-invalid-extra-data-key)
-        (asserts! (is-eq (element-at extra-data u40) (some (string-ascii-to-byte "s"))) err-invalid-extra-data-key)
-        (asserts! (is-eq (element-at extra-data u41) (some (string-ascii-to-byte "k"))) err-invalid-extra-data-key)
-        ;; value true/false => mapped below directly    
-
-        ;; key 'stop'
-        (asserts! (is-eq (element-at extra-data u43) (some 0x04)) err-invalid-extra-data-type)
-        (asserts! (is-eq (element-at extra-data u44) (some (string-ascii-to-byte "s"))) err-invalid-extra-data-key)
-        (asserts! (is-eq (element-at extra-data u45) (some (string-ascii-to-byte "t"))) err-invalid-extra-data-key)
-        (asserts! (is-eq (element-at extra-data u46) (some (string-ascii-to-byte "o"))) err-invalid-extra-data-key)
-        (asserts! (is-eq (element-at extra-data u47) (some (string-ascii-to-byte "p"))) err-invalid-extra-data-key)
-        ;; value uint
-        (asserts! (is-eq (element-at extra-data u48) (some type-id-uint)) err-invalid-extra-data-type)              
-
-        ;; key 'time'
-        (asserts! (is-eq (element-at extra-data u65) (some 0x04)) err-invalid-extra-data-type)
-        (asserts! (is-eq (element-at extra-data u66) (some (string-ascii-to-byte "t"))) err-invalid-extra-data-key)
-        (asserts! (is-eq (element-at extra-data u67) (some (string-ascii-to-byte "i"))) err-invalid-extra-data-key)
-        (asserts! (is-eq (element-at extra-data u68) (some (string-ascii-to-byte "m"))) err-invalid-extra-data-key)
-        (asserts! (is-eq (element-at extra-data u69) (some (string-ascii-to-byte "e"))) err-invalid-extra-data-key)
-        ;; value uint
-        (asserts! (is-eq (element-at extra-data u70) (some type-id-uint)) err-invalid-extra-data-type)
-
-        ;; key 'type'
-        (asserts! (is-eq (element-at extra-data u87) (some 0x04)) err-invalid-extra-data-type)
-        (asserts! (is-eq (element-at extra-data u88) (some (string-ascii-to-byte "t"))) err-invalid-extra-data-key)
-        (asserts! (is-eq (element-at extra-data u89) (some (string-ascii-to-byte "y"))) err-invalid-extra-data-key)
-        (asserts! (is-eq (element-at extra-data u90) (some (string-ascii-to-byte "p"))) err-invalid-extra-data-key)
-        (asserts! (is-eq (element-at extra-data u91) (some (string-ascii-to-byte "e"))) err-invalid-extra-data-key)
-        ;; value uint
-        (asserts! (is-eq (element-at extra-data u92) (some type-id-uint)) err-invalid-extra-data-type)
-        
-
-        (ok {
-            hash:
-                (concat
-                    (unwrap! (element-at extra-data u5) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u6) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u7) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u8) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u9) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u10) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u11) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u12) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u13) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u14) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u15) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u16) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u17) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u18) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u19) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u20) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u21) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u22) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u23) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u24) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u25) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u26) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u27) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u28) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u29) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u30) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u31) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u32) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u33) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u34) err-invalid-extra-data-length)
-                (concat
-                    (unwrap! (element-at extra-data u35) err-invalid-extra-data-length)
-                    (unwrap! (element-at extra-data u36) err-invalid-extra-data-length)
-                ))))))))))))))))))))))))))))))),    
-            risk: (is-eq (element-at extra-data u42) (some type-id-true)),
-            stop:
-                (+
-                    (match (element-at extra-data u49) byte (byte-to-uint byte) u0)
-                    (match (element-at extra-data u50) byte (* (byte-to-uint byte) u256) u0)
-                    (match (element-at extra-data u51) byte (* (byte-to-uint byte) u65536) u0)
-                    (match (element-at extra-data u52) byte (* (byte-to-uint byte) u16777216) u0)
-                    (match (element-at extra-data u53) byte (* (byte-to-uint byte) u4294967296) u0)
-                    (match (element-at extra-data u54) byte (* (byte-to-uint byte) u1099511627776) u0)
-                    (match (element-at extra-data u55) byte (* (byte-to-uint byte) u281474976710656) u0)
-                    (match (element-at extra-data u56) byte (* (byte-to-uint byte) u72057594037927936) u0)
-                    (match (element-at extra-data u57) byte (* (byte-to-uint byte) u18446744073709551616) u0)
-                    (match (element-at extra-data u58) byte (* (byte-to-uint byte) u4722366482869645213696) u0)
-                    (match (element-at extra-data u59) byte (* (byte-to-uint byte) u1208925819614629174706176) u0)
-                    (match (element-at extra-data u60) byte (* (byte-to-uint byte) u309485009821345068724781056) u0)
-                    (match (element-at extra-data u61) byte (* (byte-to-uint byte) u79228162514264337593543950336) u0)
-                    (match (element-at extra-data u62) byte (* (byte-to-uint byte) u20282409603651670423947251286016) u0)
-                    (match (element-at extra-data u63) byte (* (byte-to-uint byte) u5192296858534827628530496329220096) u0)
-                    (match (element-at extra-data u64) byte (* (byte-to-uint byte) u1329227995784915872903807060280344576) u0)
-                ),                  
-            time:
-                (+
-                    (match (element-at extra-data u71) byte (byte-to-uint byte) u0)
-                    (match (element-at extra-data u72) byte (* (byte-to-uint byte) u256) u0)
-                    (match (element-at extra-data u73) byte (* (byte-to-uint byte) u65536) u0)
-                    (match (element-at extra-data u74) byte (* (byte-to-uint byte) u16777216) u0)
-                    (match (element-at extra-data u75) byte (* (byte-to-uint byte) u4294967296) u0)
-                    (match (element-at extra-data u76) byte (* (byte-to-uint byte) u1099511627776) u0)
-                    (match (element-at extra-data u77) byte (* (byte-to-uint byte) u281474976710656) u0)
-                    (match (element-at extra-data u78) byte (* (byte-to-uint byte) u72057594037927936) u0)
-                    (match (element-at extra-data u79) byte (* (byte-to-uint byte) u18446744073709551616) u0)
-                    (match (element-at extra-data u80) byte (* (byte-to-uint byte) u4722366482869645213696) u0)
-                    (match (element-at extra-data u81) byte (* (byte-to-uint byte) u1208925819614629174706176) u0)
-                    (match (element-at extra-data u82) byte (* (byte-to-uint byte) u309485009821345068724781056) u0)
-                    (match (element-at extra-data u83) byte (* (byte-to-uint byte) u79228162514264337593543950336) u0)
-                    (match (element-at extra-data u84) byte (* (byte-to-uint byte) u20282409603651670423947251286016) u0)
-                    (match (element-at extra-data u85) byte (* (byte-to-uint byte) u5192296858534827628530496329220096) u0)
-                    (match (element-at extra-data u86) byte (* (byte-to-uint byte) u1329227995784915872903807060280344576) u0)
-                ),                      
-            type:
-                (+
-                    (match (element-at extra-data u93) byte (byte-to-uint byte) u0)
-                    (match (element-at extra-data u94) byte (* (byte-to-uint byte) u256) u0)
-                    (match (element-at extra-data u95) byte (* (byte-to-uint byte) u65536) u0)
-                    (match (element-at extra-data u96) byte (* (byte-to-uint byte) u16777216) u0)
-                    (match (element-at extra-data u97) byte (* (byte-to-uint byte) u4294967296) u0)
-                    (match (element-at extra-data u98) byte (* (byte-to-uint byte) u1099511627776) u0)
-                    (match (element-at extra-data u99) byte (* (byte-to-uint byte) u281474976710656) u0)
-                    (match (element-at extra-data u100) byte (* (byte-to-uint byte) u72057594037927936) u0)
-                    (match (element-at extra-data u101) byte (* (byte-to-uint byte) u18446744073709551616) u0)
-                    (match (element-at extra-data u102) byte (* (byte-to-uint byte) u4722366482869645213696) u0)
-                    (match (element-at extra-data u103) byte (* (byte-to-uint byte) u1208925819614629174706176) u0)
-                    (match (element-at extra-data u104) byte (* (byte-to-uint byte) u309485009821345068724781056) u0)
-                    (match (element-at extra-data u105) byte (* (byte-to-uint byte) u79228162514264337593543950336) u0)
-                    (match (element-at extra-data u106) byte (* (byte-to-uint byte) u20282409603651670423947251286016) u0)
-                    (match (element-at extra-data u107) byte (* (byte-to-uint byte) u5192296858534827628530496329220096) u0)
-                    (match (element-at extra-data u108) byte (* (byte-to-uint byte) u1329227995784915872903807060280344576) u0)
-                ),          
-            
-        })
-    )
-)
-
-
 (define-constant type-id-uint 0x01)
 (define-constant type-id-buff 0x02)
+(define-constant type-id-true 0x03)
+(define-constant type-id-false 0x04)
 (define-constant type-id-none 0x09)
 (define-constant type-id-some 0x0a)
 (define-constant type-id-tuple 0x0c)
