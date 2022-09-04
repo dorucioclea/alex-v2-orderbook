@@ -55,10 +55,6 @@ Clarinet.test({
       e.result.expectOk();
     });
 
-    // yarn run generate-order-extra-data "{ \"risk\": false, \"stop\": 0, \"time\": 1, \"type\": 0 }"
-    const left_extra =
-      '0x0c00000004047269736b040473746f7001000000000000000000000000000000000474696d65010000000000000000000000000000000104747970650100000000000000000000000000000000';
-
     const left_order = orderToTupleCV({
       sender: 1,
       'sender-fee': 1e8,
@@ -76,9 +72,6 @@ Clarinet.test({
       type: 0,
     });
 
-    // yarn run generate-order-extra-data "{ \"risk\": false, \"stop\": 0, \"time\": 2, \"type\": 0 }"
-    const right_extra =
-      '0x0c00000004047269736b040473746f7001000000000000000000000000000000000474696d65010000000000000000000000000000000204747970650100000000000000000000000000000000';
     const right_order = orderToTupleCV({
       sender: 1,
       'sender-fee': 1e8,
