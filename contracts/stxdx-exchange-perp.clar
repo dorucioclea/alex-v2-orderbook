@@ -48,7 +48,7 @@
 		taker-asset: uint, 
 		maker-asset-data: uint, 
 		taker-asset-data: uint,
-		linked-order-hash: (buff 32)
+		linked-hash: (buff 32)
 	}
 )
 
@@ -411,9 +411,8 @@
 				)				
 			)
 		)	
-
 		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-		;;;;;;;;;;;;;;;;;;;;;;;; COMMON CHECKS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		;;;;;;;;;;;;;;;;;;; PERPETUAL-SPECIFIC CHECKS ;;;;;;;;;;;;;;;;;;;;;
 		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 		(match (get linked left-order)
 			left-linked 
@@ -526,18 +525,25 @@
 			(fillable (match fill value value (get fillable validation-data)))
 			(left-parent-make (get left-order-make validation-data))
 			(right-parent-make (get right-order-make validation-data))
-		)		
+		)
+		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		;;;;;;;;;;;;;;;;;;;;;;;;;;; COMMON OPS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+		(map-set triggered-orders (get left-order-hash validation-data) true)
+		(map-set triggered-orders (get right-order-hash validation-data) true)				
 
+		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		;;;;;;;;;;;;;;;;;;;;;; PERPETUAL-SPECIFIC OPS ;;;;;;;;;;;;;;;;;;;;;
+		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 		(match (get linked left-order)
 			left-linked
 			(let 
 				;; if linked order exists, then it is to add position
-				;; extra-data of parent contains the hash of linked, for validation
+				;; linked-hash of parent contains the hash of linked, for validation
 			 	(
 					(parent-order (get parent left-order))
-					(linked-hash (get linked-hash parent-order))
 				)
-				(map-set linked-orders linked-hash true)
+				(map-set linked-orders (get linked-hash parent-order) true)
 				;; TODO: can a duplicate enter the map?
 				(map-set 
 					positions
@@ -548,18 +554,18 @@
 						taker-asset: (get taker-asset parent-order),
 						maker-asset-data: left-parent-make, 
 						taker-asset-data: (get taker-asset-data parent-order),
-						linked-order-hash: linked-hash 
+						linked-hash: (get linked-hash parent-order) 
 					}
 				)
+				;; when adding position, you pay initial margin to exchange
 				(try! (settle-to-exchange parent-order (* fillable (- left-parent-make (get taker-asset-data left-linked)))))
 			)
 			(let 
 				;; if linked order does not exist, then it is to reduce position (or liquidation by the linked order)
-				;; extra-data of parent contains the hash of the initiating order, so we can settle against that.
+				;; linked-hash of parent contains the hash of the initiating order, so we can settle against that.
 				(
 					(parent-order (get parent left-order))
-					(linked-order-hash (get linked-hash parent-order))
-					(linked-order (unwrap! (map-get? positions linked-order-hash) err-to-be-defined))
+					(linked-order (unwrap! (map-get? positions (get linked-hash parent-order)) err-to-be-defined))
 				)
 				(asserts! (is-eq (get maker parent-order) (get maker linked-order)) err-to-be-defined)
 				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset linked-order)) err-to-be-defined)
@@ -567,8 +573,8 @@
 				;; numeraire must be the same
 				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data linked-order)) err-to-be-defined)
 								
-				(map-delete linked-orders linked-order-hash)
-				(map-delete positions linked-order-hash)
+				(map-delete linked-orders (get linked-hash parent-order))
+				(map-delete positions (get linked-hash parent-order))
 				(try! (settle-from-exchange parent-order (* fillable (- right-parent-make (get maker-asset-data linked-order)))))
 			)
 		)	
@@ -577,12 +583,11 @@
 			right-linked
 			(let 
 				;; if linked order exists, then it is to add position
-				;; extra-data of parent contains the hash of linked, for validation
+				;; linked-hash of parent contains the hash of linked, for validation
 			 	(
 					(parent-order (get parent right-order))
-					(linked-hash (get linked-hash parent-order))
 				)
-				(map-set linked-orders linked-hash true)
+				(map-set linked-orders (get linked-hash parent-order) true)
 				;; TODO: can a duplicate enter the map?
 				(map-set 
 					positions
@@ -593,18 +598,17 @@
 						taker-asset: (get taker-asset parent-order),
 						maker-asset-data: right-parent-make, 
 						taker-asset-data: (get taker-asset-data parent-order),
-						linked-order-hash: linked-hash 
+						linked-hash: (get linked-hash parent-order)
 					}
 				)
 				(try! (settle-to-exchange parent-order (* fillable (- right-parent-make (get taker-asset-data right-linked)))))
 			)
 			(let 
 				;; if linked order does not exist, then it is to reduce position (or liquidation by the linked order)
-				;; extra-data of parent contains the hash of the initiating order, so we can settle against that.
+				;; linked-hash of parent contains the hash of the initiating order, so we can settle against that.
 				(
 					(parent-order (get parent right-order))
-					(linked-order-hash (get linked-hash parent-order))
-					(linked-order (unwrap! (map-get? positions linked-order-hash) err-to-be-defined))
+					(linked-order (unwrap! (map-get? positions (get linked-hash parent-order)) err-to-be-defined))
 				)
 				(asserts! (is-eq (get maker parent-order) (get maker linked-order)) err-to-be-defined)
 				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset linked-order)) err-to-be-defined)
@@ -612,9 +616,9 @@
 				;; numeraire must be the same
 				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data linked-order)) err-to-be-defined)
 								
-				(map-delete linked-orders linked-order-hash)
-				(map-delete positions linked-order-hash)
-				(try! (settle-from-exchange parent-order (* fillable (- right-parent-make (get maker-asset-data linked-order)))))
+				(map-delete linked-orders (get linked-hash parent-order))
+				(map-delete positions (get linked-hash parent-order))
+				(try! (settle-from-exchange parent-order (* fillable (- left-parent-make (get maker-asset-data linked-order)))))
 			)
 		)			
 
