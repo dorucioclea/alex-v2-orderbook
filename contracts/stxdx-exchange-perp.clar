@@ -24,12 +24,15 @@
 (define-constant err-stop-not-triggered (err u5009))
 (define-constant err-invalid-order-type (err u5010))
 (define-constant err-cancel-authorisation-failed (err u5011))
+(define-constant err-maker-mismatch (err u5012))
+(define-constant err-maximum-fill-mismatch (err u5013))
+(define-constant err-expiration-height-mismatch (err u5014))
+(define-constant err-order-hash-mismatch (err u5015))
+(define-constant err-linked-order-not-found (err u5016))
 
 ;; 6000-6999: oracle errors
 (define-constant err-untrusted-oracle (err u6000))
 (define-constant err-no-oracle-data (err u6001))
-
-(define-constant err-to-be-defined (err u99999))
 
 (define-constant type-order-vanilla u0)
 (define-constant type-order-fok u1)
@@ -418,29 +421,29 @@
 			left-linked 
 			(begin 
 				;; validate parent-linked data
-				(asserts! (is-eq (get maker left-parent) (get maker left-linked)) err-to-be-defined)
-				(asserts! (is-eq (get maker-asset left-parent) (get taker-asset left-linked)) err-to-be-defined)
-				(asserts! (is-eq (get taker-asset left-parent) (get maker-asset left-linked)) err-to-be-defined)
-				(asserts! (is-eq (get maximum-fill left-parent) (get maximum-fill left-linked)) err-to-be-defined)
-				(asserts! (is-eq (get expiration-height left-linked) u340282366920938463463374607431768211455) err-to-be-defined)
-				(asserts! (is-eq (hash-order left-linked) (get linked-hash left-parent)) err-to-be-defined)
-				(asserts! (is-eq type-order-fok (get type left-parent)) err-to-be-defined)
+				(asserts! (is-eq (get maker left-parent) (get maker left-linked)) err-maker-mismatch)
+				(asserts! (is-eq (get maker-asset left-parent) (get taker-asset left-linked)) err-maker-asset-mismatch)
+				(asserts! (is-eq (get taker-asset left-parent) (get maker-asset left-linked)) err-taker-asset-mismatch)
+				(asserts! (is-eq (get maximum-fill left-parent) (get maximum-fill left-linked)) err-maximum-fill-mismatch)
+				(asserts! (is-eq (get expiration-height left-linked) u340282366920938463463374607431768211455) err-expiration-height-mismatch)
+				(asserts! (is-eq (hash-order left-linked) (get linked-hash left-parent)) err-order-hash-mismatch)
+				(asserts! (is-eq type-order-fok (get type left-parent)) err-invalid-order-type)
 			)
-			(asserts! true err-to-be-defined)
+			true
 		)
 		(match (get linked right-order)
 			right-linked	
 			(begin		
 				;; validate parent-linked data
-				(asserts! (is-eq (get maker right-parent) (get maker right-linked)) err-to-be-defined)		
-				(asserts! (is-eq (get maker-asset right-parent) (get taker-asset right-linked)) err-to-be-defined)		
-				(asserts! (is-eq (get taker-asset right-parent) (get maker-asset right-linked)) err-to-be-defined)		
-				(asserts! (is-eq (get maximum-fill right-parent) (get maximum-fill right-linked)) err-to-be-defined)		
-				(asserts! (is-eq (get expiration-height right-linked) u340282366920938463463374607431768211455) err-to-be-defined)		
-				(asserts! (is-eq (hash-order right-linked) (get linked-hash right-parent)) err-to-be-defined)
-				(asserts! (is-eq type-order-fok (get type right-parent)) err-to-be-defined)
+				(asserts! (is-eq (get maker right-parent) (get maker right-linked)) err-maker-mismatch)		
+				(asserts! (is-eq (get maker-asset right-parent) (get taker-asset right-linked)) err-maker-asset-mismatch)		
+				(asserts! (is-eq (get taker-asset right-parent) (get maker-asset right-linked)) err-taker-asset-mismatch)		
+				(asserts! (is-eq (get maximum-fill right-parent) (get maximum-fill right-linked)) err-maximum-fill-mismatch)		
+				(asserts! (is-eq (get expiration-height right-linked) u340282366920938463463374607431768211455) err-expiration-height-mismatch)		
+				(asserts! (is-eq (hash-order right-linked) (get linked-hash right-parent)) err-order-hash-mismatch)
+				(asserts! (is-eq type-order-fok (get type right-parent)) err-invalid-order-type)
 			)
-			(asserts! true err-to-be-defined)
+			true
 		)
 
 		(asserts! (validate-authorisation left-order-fill (get maker left-user) (get maker-pubkey left-user) left-order-hash left-signature) err-left-authorisation-failed)
@@ -565,13 +568,13 @@
 				;; linked-hash of parent contains the hash of the initiating order, so we can settle against that.
 				(
 					(parent-order (get parent left-order))
-					(linked-order (unwrap! (map-get? positions (get linked-hash parent-order)) err-to-be-defined))
+					(linked-order (unwrap! (map-get? positions (get linked-hash parent-order)) err-linked-order-not-found))
 				)
-				(asserts! (is-eq (get maker parent-order) (get maker linked-order)) err-to-be-defined)
-				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset linked-order)) err-to-be-defined)
-				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset linked-order)) err-to-be-defined)
+				(asserts! (is-eq (get maker parent-order) (get maker linked-order)) err-maker-mismatch)
+				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset linked-order)) err-maker-asset-mismatch)
+				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset linked-order)) err-taker-asset-mismatch)
 				;; numeraire must be the same
-				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data linked-order)) err-to-be-defined)
+				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data linked-order)) err-asset-data-mismatch)
 								
 				(map-delete linked-orders (get linked-hash parent-order))
 				(map-delete positions (get linked-hash parent-order))
@@ -608,13 +611,13 @@
 				;; linked-hash of parent contains the hash of the initiating order, so we can settle against that.
 				(
 					(parent-order (get parent right-order))
-					(linked-order (unwrap! (map-get? positions (get linked-hash parent-order)) err-to-be-defined))
+					(linked-order (unwrap! (map-get? positions (get linked-hash parent-order)) err-linked-order-not-found))
 				)
-				(asserts! (is-eq (get maker parent-order) (get maker linked-order)) err-to-be-defined)
-				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset linked-order)) err-to-be-defined)
-				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset linked-order)) err-to-be-defined)
+				(asserts! (is-eq (get maker parent-order) (get maker linked-order)) err-maker-mismatch)
+				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset linked-order)) err-maker-asset-mismatch)
+				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset linked-order)) err-taker-asset-mismatch)
 				;; numeraire must be the same
-				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data linked-order)) err-to-be-defined)
+				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data linked-order)) err-asset-data-mismatch)
 								
 				(map-delete linked-orders (get linked-hash parent-order))
 				(map-delete positions (get linked-hash parent-order))
