@@ -27,7 +27,7 @@ Clarinet.test({
           types.uint(1e8),
           types.uint(2),
           types.uint(1),
-          types.principal(deployer.address + '.token-wstx'),
+          types.principal(deployer.address + '.token-wxusd'),
         ],
         sender.address,
       ),
@@ -38,7 +38,7 @@ Clarinet.test({
       Tx.contractCall(
         contractNames.wallet,
         'transfer-out',
-        [types.uint(1), types.principal(deployer.address + '.token-wstx')],
+        [types.uint(1), types.principal(deployer.address + '.token-wxusd')],
         sender.address,
       ),
     ]);
@@ -59,15 +59,16 @@ Clarinet.test({
       Tx.contractCall(
         contractNames.wallet,
         'transfer-out',
-        [types.uint(1), types.principal(deployer.address + '.token-wstx')],
+        [types.uint(1), types.principal(deployer.address + '.token-wxusd')],
         sender.address,
       ),
     ]);
     block.receipts[0].result.expectOk();
-    block.receipts[0].events.expectSTXTransferEvent(
-      1e6,
+    block.receipts[0].events.expectFungibleTokenTransferEvent(
+      1e8,
       deployer.address + '.stxdx-wallet-zero',
       sender.address,
+      'xusd',
     );
     // console.log(block.receipts[0].events);
   },

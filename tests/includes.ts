@@ -76,13 +76,25 @@ export function prepareChainBasicTest(
 
   return chain.mineBlock([
     Tx.contractCall(
-      'age000-governance-token',
+      'token-xbtc',
       'mint-fixed',
       [types.uint(10000e8), types.principal(wallet_2.address)],
       deployer.address,
     ),
     Tx.contractCall(
-      'age000-governance-token',
+      'token-xbtc',
+      'mint-fixed',
+      [types.uint(10000e8), types.principal(wallet_3.address)],
+      deployer.address,
+    ),
+    Tx.contractCall(
+      'token-xusd',
+      'mint-fixed',
+      [types.uint(10000e8), types.principal(wallet_2.address)],
+      deployer.address,
+    ),
+    Tx.contractCall(
+      'token-xusd',
       'mint-fixed',
       [types.uint(10000e8), types.principal(wallet_3.address)],
       deployer.address,
@@ -120,13 +132,13 @@ export function prepareChainBasicTest(
     Tx.contractCall(
       contractNames.registry,
       'register-asset',
-      ['.token-wstx'],
+      ['.token-wxusd'],
       deployer.address,
     ),
     Tx.contractCall(
       contractNames.registry,
       'register-asset',
-      ['.age000-governance-token'],
+      ['.token-wbtc'],
       deployer.address,
     ),
     Tx.contractCall(
@@ -154,7 +166,7 @@ export function prepareChainBasicTest(
         types.uint(10000e8),
         types.uint(2),
         types.uint(1),
-        types.principal(deployer.address + '.token-wstx'),
+        types.principal(deployer.address + '.token-wxusd'),
       ],
       wallet_2.address,
     ),
@@ -165,7 +177,7 @@ export function prepareChainBasicTest(
         types.uint(10000e8),
         types.uint(3),
         types.uint(1),
-        types.principal(deployer.address + '.token-wstx'),
+        types.principal(deployer.address + '.token-wxusd'),
       ],
       wallet_3.address,
     ),
@@ -176,7 +188,7 @@ export function prepareChainBasicTest(
         types.uint(10000e8),
         types.uint(2),
         types.uint(2),
-        types.principal(deployer.address + '.age000-governance-token'),
+        types.principal(deployer.address + '.token-wbtc'),
       ],
       wallet_2.address,
     ),
@@ -187,9 +199,31 @@ export function prepareChainBasicTest(
         types.uint(10000e8),
         types.uint(3),
         types.uint(2),
-        types.principal(deployer.address + '.age000-governance-token'),
+        types.principal(deployer.address + '.token-wbtc'),
       ],
       wallet_3.address,
+    ),
+    Tx.contractCall(
+      contractNames.exchange,
+      'set-trusted-oracle',
+      [
+        buff(
+          'xyTvKiCST8bAT6sxrgkLh8UCX2N1eKvawODuxwq4qOHIdDAZFU_3N2m59rkZ0E7m77GsJuf1I8u0oEJEbxAdT7uD2JTwoYEHauXSxyJYvF0RCcZOhl5P1PJwImd44SJYa_9My7L84D5KXB9SKs8_VThe7ZyOb5HSGLNvMIK6A8IJ4Hr_tg9GYm65CRmtcu18S9mhun8vgw2wi7Gw6oR6mc4vU1I-hrU66Fi7YlXwFieP6YSy01JqoLPhU84EunPQzXPouVSbXjgRU5kFVxtdRy4GK2fzEBFYsQwCQgFrySCrFKHV8AInu9jerfof_DxNKiXkBzlB8nc22CrYnvvio_BWyh-gN0hQHZT0gwMR-A7sbXNCQJfReaIZzX_jP6XoB82PnpzmL_j1mJ2lnv2Rn001flBAx9AYxtGXd9s07pA-FggTbEG3Y2UnlWW6l3EJ93E0IfxL0PqGEUlp217mxUHvmTw9fkGDWa8rT9RPmsTyji-kMFSefclw80cBm_iOsIEutGP4S3LDbP-ZVJWDeJOBQQpSgwbisl8qbjl2sMQLQihoG2TQyNbmLwfyq-XSULkXjUi1_6BH36wnDBLWBKF-bS2bLKcGtn3Vjet72lNHxJJilcj8vpauwJG0078S_lO5uGt6oicdGR6eh_NSn6_8za_tXg0G_fohz4Yb1z8',
+        ),
+        types.bool(true),
+      ],
+      deployer.address,
+    ),
+    Tx.contractCall(
+      contractNames.exchange,
+      'set-oracle-symbol',
+      [
+        types.uint(2),
+        buff(
+          '0x42544300000000000000000000000000000000000000000000000000000000',
+        ),
+      ],
+      deployer.address,
     ),
   ]);
 }
