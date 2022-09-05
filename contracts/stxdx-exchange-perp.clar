@@ -335,6 +335,9 @@
 			(right-order-fill (get order-2 order-fills))
 			(fillable (min (- (get maximum-fill left-parent) left-order-fill) (- (get maximum-fill right-parent) right-order-fill)))
 		)
+		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		;;;;;;;;;;;;;;;;;;;;;;;; COMMON CHECKS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 		(try! (is-authorised-sender))
 		;; there are more fills to do
 		(match fill value (asserts! (>= fillable value) err-maximum-fill-reached) (asserts! (> fillable u0) err-maximum-fill-reached))		
@@ -346,35 +349,6 @@
 		(asserts! (is-eq (get taker-asset left-parent) (get maker-asset right-parent)) err-taker-asset-mismatch)
 		;; left-parent must be older than right-parent
 		(asserts! (< (get timestamp left-parent) (get timestamp right-parent)) err-invalid-timestamp)
-		
-		(match (get linked left-order)
-			left-linked 
-			(begin 
-				;; validate parent-linked data
-				(asserts! (is-eq (get maker left-parent) (get maker left-linked)) err-to-be-defined)
-				(asserts! (is-eq (get maker-asset left-parent) (get taker-asset left-linked)) err-to-be-defined)
-				(asserts! (is-eq (get taker-asset left-parent) (get maker-asset left-linked)) err-to-be-defined)
-				(asserts! (is-eq (get maximum-fill left-parent) (get maximum-fill left-linked)) err-to-be-defined)
-				(asserts! (is-eq (get expiration-height left-linked) u340282366920938463463374607431768211455) err-to-be-defined)
-				(asserts! (is-eq (hash-order left-linked) (get linked-hash left-parent)) err-to-be-defined)
-				(asserts! (is-eq type-order-fok (get type left-parent)) err-to-be-defined)
-			)
-			(asserts! true err-to-be-defined)
-		)
-		(match (get linked right-order)
-			right-linked	
-			(begin		
-				;; validate parent-linked data
-				(asserts! (is-eq (get maker right-parent) (get maker right-linked)) err-to-be-defined)		
-				(asserts! (is-eq (get maker-asset right-parent) (get taker-asset right-linked)) err-to-be-defined)		
-				(asserts! (is-eq (get taker-asset right-parent) (get maker-asset right-linked)) err-to-be-defined)		
-				(asserts! (is-eq (get maximum-fill right-parent) (get maximum-fill right-linked)) err-to-be-defined)		
-				(asserts! (is-eq (get expiration-height right-linked) u340282366920938463463374607431768211455) err-to-be-defined)		
-				(asserts! (is-eq (hash-order right-linked) (get linked-hash right-parent)) err-to-be-defined)
-				(asserts! (is-eq type-order-fok (get type right-parent)) err-to-be-defined)
-			)
-			(asserts! true err-to-be-defined)
-		)
 		;; one side matches and the taker of the other side is smaller than maker.
 		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
 		(asserts! 
@@ -437,6 +411,39 @@
 				)				
 			)
 		)	
+
+		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		;;;;;;;;;;;;;;;;;;;;;;;; COMMON CHECKS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		(match (get linked left-order)
+			left-linked 
+			(begin 
+				;; validate parent-linked data
+				(asserts! (is-eq (get maker left-parent) (get maker left-linked)) err-to-be-defined)
+				(asserts! (is-eq (get maker-asset left-parent) (get taker-asset left-linked)) err-to-be-defined)
+				(asserts! (is-eq (get taker-asset left-parent) (get maker-asset left-linked)) err-to-be-defined)
+				(asserts! (is-eq (get maximum-fill left-parent) (get maximum-fill left-linked)) err-to-be-defined)
+				(asserts! (is-eq (get expiration-height left-linked) u340282366920938463463374607431768211455) err-to-be-defined)
+				(asserts! (is-eq (hash-order left-linked) (get linked-hash left-parent)) err-to-be-defined)
+				(asserts! (is-eq type-order-fok (get type left-parent)) err-to-be-defined)
+			)
+			(asserts! true err-to-be-defined)
+		)
+		(match (get linked right-order)
+			right-linked	
+			(begin		
+				;; validate parent-linked data
+				(asserts! (is-eq (get maker right-parent) (get maker right-linked)) err-to-be-defined)		
+				(asserts! (is-eq (get maker-asset right-parent) (get taker-asset right-linked)) err-to-be-defined)		
+				(asserts! (is-eq (get taker-asset right-parent) (get maker-asset right-linked)) err-to-be-defined)		
+				(asserts! (is-eq (get maximum-fill right-parent) (get maximum-fill right-linked)) err-to-be-defined)		
+				(asserts! (is-eq (get expiration-height right-linked) u340282366920938463463374607431768211455) err-to-be-defined)		
+				(asserts! (is-eq (hash-order right-linked) (get linked-hash right-parent)) err-to-be-defined)
+				(asserts! (is-eq type-order-fok (get type right-parent)) err-to-be-defined)
+			)
+			(asserts! true err-to-be-defined)
+		)
+
 		(asserts! (validate-authorisation left-order-fill (get maker left-user) (get maker-pubkey left-user) left-order-hash left-signature) err-left-authorisation-failed)
 		(asserts! (validate-authorisation right-order-fill (get maker right-user) (get maker-pubkey right-user) right-order-hash right-signature) err-right-authorisation-failed)
 		(ok
