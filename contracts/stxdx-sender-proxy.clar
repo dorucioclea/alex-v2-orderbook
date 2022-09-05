@@ -60,7 +60,7 @@
 			fill: (optional uint)
 		}
 	))
-	(match-orders (get left-order matched-orders) (get right-order matched-orders) (get left-signature matched-orders) (get right-signature matched-orders) (get left-oracle-data matched-orders) (get right-oracle-data matched-orders) (get fill matched-orders))
+  (as-contract (contract-call? .stxdx-exchange-zero match-orders (get left-order matched-orders) (get right-order matched-orders) (get left-signature matched-orders) (get right-signature matched-orders) (get left-oracle-data matched-orders) (get right-oracle-data matched-orders) (get fill matched-orders)))
 )
 
 (define-public (match-orders-many 
@@ -77,6 +77,9 @@
 			}
 		)
 	))
-	(ok (map match-orders-iter matched-orders-list))
+	(begin
+		(try! (is-authorised-sender))
+		(ok (map match-orders-iter matched-orders-list))
+	)
 )
 
