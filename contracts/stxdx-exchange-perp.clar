@@ -113,13 +113,16 @@
 			(cancel-hash (hash-cancel-order order-hash))
 			(maker-pubkey (get maker-pubkey (try! (contract-call? .stxdx-registry user-from-id-or-fail (get maker order)))))
 		)
-		(try! (is-authorised-sender))	
+		(try! (is-authorised-sender))
 		(asserts! 
-			(or
-				(is-eq type-order-fok (get type order))
-				(is-eq type-order-ioc (get type order))
-				(is-eq (secp256k1-recover? (sha256 (concat structured-data-prefix (concat message-domain cancel-hash))) signature) (ok maker-pubkey))
-			) 
+			(and 
+				(not (default-to false (map-get? linked-orders order-hash)))
+				(or
+					(is-eq type-order-fok (get type order))
+					(is-eq type-order-ioc (get type order))
+					(is-eq (secp256k1-recover? (sha256 (concat structured-data-prefix (concat message-domain cancel-hash))) signature) (ok maker-pubkey))
+				) 
+			)
 			err-cancel-authorisation-failed
 		)
 		;; cancel means no more fill, so setting its fill to maximum-fill achieve it.
