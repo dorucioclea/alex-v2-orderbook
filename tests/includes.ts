@@ -33,7 +33,7 @@ const buff = (input: string | ArrayBuffer) =>
       : `0x${input}`
     : bufferCV(input);
 
-export function orderToTupleCV(order: { [key: string]: any }) {
+export function orderToTuple(order: { [key: string]: any }) {
   const expected_struct: { [key: string]: Function } = {
     sender: uintCV,
     'sender-fee': uintCV,
@@ -55,7 +55,11 @@ export function orderToTupleCV(order: { [key: string]: any }) {
     if (key in order) orderTuple[key] = func(order[key]);
     else throw new Error(`Order object missing ${key} field`);
 
-  return tupleCV(orderTuple);
+  return orderTuple;
+}
+
+export function orderToTupleCV(order: { [key: string]: any }) {
+  return tupleCV(orderToTuple(order));
 }
 
 export function prepareChainBasicTest(

@@ -3,6 +3,7 @@ import {
   Chain,
   Clarinet,
   contractNames,
+  orderToTuple,
   orderToTupleCV,
   prepareChainBasicTest,
   Tx,
@@ -58,31 +59,6 @@ Clarinet.test({
     const right_signature =
       '0x5e3c2e1f8d414b3abef2891a9198fe278534a648e2e01d92af4c52b381cfe4b5756fd6a7e6111110bf6995463a73ab055863d9e131de34cb9a467c73918bb49600';
 
-    // const block = chain.mineBlock([
-    //   Tx.contractCall(
-    //     contractNames.sender_proxy,
-    //     'match-orders-many',
-    //     [
-    //       types.list([
-    //         types.tuple({
-    //           'left-order': left_order,
-    //           'right-order': right_order,
-    //           'left-signature': left_signature,
-    //           'right-signature': right_signature,
-    //           fill: types.none(),
-    //         }),
-    //       ]),
-    //     ],
-    //     sender.address,
-    //   ),
-    // ]);
-    // block.receipts[0].result
-    //   .expectOk()
-    //   .expectList()[0]
-    //   .expectOk()
-    //   .expectUint(50);
-    // console.log(block.receipts[0].events);
-
     const block = chain.mineBlock([
       Tx.contractCall(
         contractNames.sender_proxy,
@@ -103,6 +79,85 @@ Clarinet.test({
       .expectOk()
       .expectTuple()
       ['fillable'].expectUint(50);
+    // console.log(block.receipts[0].events);
+  },
+});
+
+Clarinet.test({
+  name: 'Exchange: can match two vanilla limit order through sender proxy',
+  fn(chain: Chain, accounts: Map<string, Account>) {
+    const sender = accounts.get('wallet_1')!;
+
+    const results = prepareChainBasicTest(chain, accounts);
+    results.receipts.forEach((e: any) => {
+      e.result.expectOk();
+    });
+
+    const left_order = orderToTuple({
+      sender: 1,
+      'sender-fee': 1e8,
+      maker: 2,
+      'maker-asset': 1,
+      'taker-asset': 2,
+      'maker-asset-data': 14e8,
+      'taker-asset-data': 1e8,
+      'maximum-fill': 100,
+      'expiration-height': 100,
+      salt: 1,
+      risk: false,
+      stop: 0,
+      timestamp: 1,
+      type: 0,
+    });
+
+    const right_order = orderToTuple({
+      sender: 1,
+      'sender-fee': 1e8,
+      maker: 3,
+      'maker-asset': 2,
+      'taker-asset': 1,
+      'maker-asset-data': 1e8,
+      'taker-asset-data': 14e8,
+      'maximum-fill': 50,
+      'expiration-height': 100,
+      salt: 2,
+      risk: false,
+      stop: 0,
+      timestamp: 2,
+      type: 0,
+    });
+
+    const left_signature =
+      '0x51b195c240eae83f7c42438a673c2338105851ab11d0ac6ded878d14981e9b7479b1a62a18af10b34a21acd0392cec7cfbb3b8ea19b355a7268e2526bddd66f401';
+    const right_signature =
+      '0x5e3c2e1f8d414b3abef2891a9198fe278534a648e2e01d92af4c52b381cfe4b5756fd6a7e6111110bf6995463a73ab055863d9e131de34cb9a467c73918bb49600';
+
+    const block = chain.mineBlock([
+      Tx.contractCall(
+        contractNames.sender_proxy,
+        'match-orders-many',
+        [
+          types.list([
+            types.tuple({
+              'left-order': left_order,
+              'right-order': right_order,
+              'left-signature': left_signature,
+              'right-signature': right_signature,
+              'left-oracle-data': types.none(),
+              'right-oracle-data': types.none(),
+              fill: types.none(),
+            }),
+          ]),
+        ],
+        sender.address,
+      ),
+    ]);
+    block.receipts[0].result
+      .expectOk()
+      .expectList()[0]
+      .expectOk()
+      .expectTuple()
+      .fillable.expectUint(50);
     // console.log(block.receipts[0].events);
   },
 });
