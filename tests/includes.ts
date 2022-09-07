@@ -16,6 +16,7 @@ const contractNames = {
   registry: 'stxdx-registry',
   sender_proxy: 'stxdx-sender-proxy',
   wallet: 'stxdx-wallet-zero',
+  oracle: 'redstone-verify',
 };
 
 const uintCV = types.uint;
@@ -80,13 +81,25 @@ export function prepareChainBasicTest(
 
   return chain.mineBlock([
     Tx.contractCall(
-      'age000-governance-token',
+      'token-xbtc',
       'mint-fixed',
       [types.uint(10000e8), types.principal(wallet_2.address)],
       deployer.address,
     ),
     Tx.contractCall(
-      'age000-governance-token',
+      'token-xbtc',
+      'mint-fixed',
+      [types.uint(10000e8), types.principal(wallet_3.address)],
+      deployer.address,
+    ),
+    Tx.contractCall(
+      'token-xusd',
+      'mint-fixed',
+      [types.uint(10000e8), types.principal(wallet_2.address)],
+      deployer.address,
+    ),
+    Tx.contractCall(
+      'token-xusd',
       'mint-fixed',
       [types.uint(10000e8), types.principal(wallet_3.address)],
       deployer.address,
@@ -124,13 +137,13 @@ export function prepareChainBasicTest(
     Tx.contractCall(
       contractNames.registry,
       'register-asset',
-      ['.token-wstx'],
+      ['.token-wxusd'],
       deployer.address,
     ),
     Tx.contractCall(
       contractNames.registry,
       'register-asset',
-      ['.age000-governance-token'],
+      ['.token-wbtc'],
       deployer.address,
     ),
     Tx.contractCall(
@@ -158,7 +171,7 @@ export function prepareChainBasicTest(
         types.uint(10000e8),
         types.uint(2),
         types.uint(1),
-        types.principal(deployer.address + '.token-wstx'),
+        types.principal(deployer.address + '.token-wxusd'),
       ],
       wallet_2.address,
     ),
@@ -169,7 +182,7 @@ export function prepareChainBasicTest(
         types.uint(10000e8),
         types.uint(3),
         types.uint(1),
-        types.principal(deployer.address + '.token-wstx'),
+        types.principal(deployer.address + '.token-wxusd'),
       ],
       wallet_3.address,
     ),
@@ -180,7 +193,7 @@ export function prepareChainBasicTest(
         types.uint(10000e8),
         types.uint(2),
         types.uint(2),
-        types.principal(deployer.address + '.age000-governance-token'),
+        types.principal(deployer.address + '.token-wbtc'),
       ],
       wallet_2.address,
     ),
@@ -191,9 +204,65 @@ export function prepareChainBasicTest(
         types.uint(10000e8),
         types.uint(3),
         types.uint(2),
-        types.principal(deployer.address + '.age000-governance-token'),
+        types.principal(deployer.address + '.token-wbtc'),
       ],
       wallet_3.address,
     ),
+    // for oracle pubkey, check ecdsaPublicKey at https://api.redstone.finance/providers
+    // Buffer.from(compressRedstonePubkey(hexToBytes('0x04009dd87eb41d96ce8ad94aa22ea8b0ba4ac20c45e42f71726d6b180f93c3f298e333ae7591fe1c9d88234575639be9e81e35ba2fe5ad2c2260f07db49ccb9d0d'))).toString('hex')
+    Tx.contractCall(
+      contractNames.exchange,
+      'set-trusted-oracle',
+      [
+        buff(
+          '0x03009dd87eb41d96ce8ad94aa22ea8b0ba4ac20c45e42f71726d6b180f93c3f298',
+        ),
+        types.bool(true),
+      ],
+      deployer.address,
+    ),
+    Tx.contractCall(
+      contractNames.exchange,
+      'set-oracle-symbol',
+      [
+        types.uint(2),
+        buff(
+          '0x42544300000000000000000000000000000000000000000000000000000000',
+        ),
+      ],
+      deployer.address,
+    ),
   ]);
+}
+
+export type PricePackage = {
+  prices: { symbol: string; value: any }[];
+  timestamp: number;
+};
+
+// One day Clarinet may be able to import actual project source files so we
+// can stop repeating code.
+
+export function shiftPriceValue(value: number) {
+  return Math.round(value * 10 ** 8);
+}
+
+export function stringToUint8Array(input: string) {
+  let codePoints: number[] = [];
+  for (let i = 0; i < input.length; ++i) codePoints.push(input.charCodeAt(i));
+  return new Uint8Array(codePoints);
+}
+
+export function pricePackageToCV(pricePackage: PricePackage) {
+  return {
+    timestamp: types.uint(pricePackage.timestamp),
+    prices: types.list(
+      pricePackage.prices.map((entry: { symbol: string; value: any }) =>
+        types.tuple({
+          symbol: types.buff(stringToUint8Array(entry.symbol)),
+          value: types.uint(shiftPriceValue(entry.value)),
+        }),
+      ),
+    ),
+  };
 }

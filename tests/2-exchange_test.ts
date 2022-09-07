@@ -6,6 +6,8 @@ import {
   orderToTuple,
   orderToTupleCV,
   prepareChainBasicTest,
+  PricePackage,
+  shiftPriceValue,
   Tx,
   types,
 } from './includes.ts';
@@ -310,5 +312,271 @@ Clarinet.test({
       .expectOk()
       .expectTuple()
       ['right-order-make'].expectUint(22808);
+  },
+});
+
+Clarinet.test({
+  name: 'Exchange: can match buy market limit order',
+  fn(chain: Chain, accounts: Map<string, Account>) {
+    const sender = accounts.get('wallet_1')!;
+
+    const results = prepareChainBasicTest(chain, accounts);
+    results.receipts.forEach((e: any) => {
+      e.result.expectOk();
+    });
+
+    const left_order = orderToTupleCV({
+      sender: 1,
+      'sender-fee': 1e8,
+      maker: 2,
+      'maker-asset': 2,
+      'taker-asset': 1,
+      'maker-asset-data': 1,
+      'taker-asset-data': 22808,
+      'maximum-fill': 100,
+      'expiration-height': 100,
+      salt: 1,
+      risk: false,
+      stop: 0,
+      timestamp: 1,
+      type: 0,
+    });
+
+    const right_order = orderToTupleCV({
+      sender: 1,
+      'sender-fee': 1e8,
+      maker: 3,
+      'maker-asset': 1,
+      'taker-asset': 2,
+      'maker-asset-data': 22855,
+      'taker-asset-data': 1,
+      'maximum-fill': 50,
+      'expiration-height': 100,
+      salt: 2,
+      risk: false,
+      stop: 0,
+      timestamp: 2,
+      type: 2,
+    });
+
+    // yarn generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 2, \"maker-asset\": 2, \"taker-asset\": 1, \"maker-asset-data\": 1, \"taker-asset-data\": 22808, \"maximum-fill\": 100, \"expiration-height\": 100, \"salt\": 1, \"risk\": false, \"stop\": 0, \"timestamp\": 1, \"type\": 0 }"
+    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0xb26072bb08ec119ac18aadc930c50bb1bc71161012674ff0c9c7e4b5dfe154d0
+    const left_signature =
+      '0xc09731b7f3a7a2bc4cdf9eabe79e8dd9494f561d65bd8fa176fa3742f54718584eb6d6bd2afd7ef5ec08741339d5943e48d4eb48bea924da0db0727b56c4b6fd00';
+    // yarn generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 3, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": 22855, \"taker-asset-data\": 1, \"maximum-fill\": 50, \"expiration-height\": 100, \"salt\": 2, \"risk\": false, \"stop\": 0, \"timestamp\": 2, \"type\": 2 }"
+    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0x82a6ee06d550045eb2dc401a04c32bd99fef8cc16636a885984b0430b2352a57
+    const right_signature =
+      '0x7defeb8cfbf56eddbe428a424cb86c93d7ead145a6149546bedf11dd5563e3012e48895772a41e01ed6c1ac9b34d3f717293a3b39a04613044baf07d6317670901';
+
+    const block = chain.mineBlock([
+      Tx.contractCall(
+        contractNames.sender_proxy,
+        'match-orders',
+        [
+          left_order,
+          right_order,
+          left_signature,
+          right_signature,
+          types.none(),
+          types.none(),
+          types.none(),
+        ],
+        sender.address,
+      ),
+    ]);
+    block.receipts[0].result
+      .expectOk()
+      .expectTuple()
+      ['right-order-make'].expectUint(22808);
+  },
+});
+
+Clarinet.test({
+  name: 'Exchange: can match stop-market order (risk mgmt)',
+  fn(chain: Chain, accounts: Map<string, Account>) {
+    const sender = accounts.get('wallet_1')!;
+
+    const results = prepareChainBasicTest(chain, accounts);
+    results.receipts.forEach((e: any) => {
+      e.result.expectOk();
+    });
+
+    const left_order = orderToTupleCV({
+      sender: 1,
+      'sender-fee': 1e8,
+      maker: 2,
+      'maker-asset': 1,
+      'taker-asset': 2,
+      'maker-asset-data': 18800,
+      'taker-asset-data': 1,
+      'maximum-fill': 100,
+      'expiration-height': 100,
+      salt: 1,
+      risk: false,
+      stop: 0,
+      timestamp: 1,
+      type: 0,
+    });
+
+    const right_order = orderToTupleCV({
+      sender: 1,
+      'sender-fee': 1e8,
+      maker: 3,
+      'maker-asset': 2,
+      'taker-asset': 1,
+      'maker-asset-data': 1,
+      'taker-asset-data': 0,
+      'maximum-fill': 50,
+      'expiration-height': 100,
+      salt: 2,
+      risk: true,
+      stop: 1900000000000,
+      timestamp: 2,
+      type: 2,
+    });
+
+    const oracle_signature =
+      '0x71b534851bcd7584e7743043917606968cfc571c45e765d088aa07c2347b2c7918506ee6002b4014514523494367232c334d22a25167fcf8682a1f79ada700db01';
+
+    const pricePackage: PricePackage = {
+      timestamp: 1662540506183,
+      prices: [
+        {
+          symbol: 'BTC',
+          value: 18805.300000000003,
+        },
+      ],
+    };
+
+    // yarn generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 2, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": 18800, \"taker-asset-data\": 1, \"maximum-fill\": 100, \"expiration-height\": 100, \"salt\": 1, \"risk\": false, \"stop\": 0, \"timestamp\": 1, \"type\": 0 }"
+    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0x940cf3994d264f0b02ececdc7411777de9f5085b1a1aaf9e80b252a763e5b1a9
+    const left_signature =
+      '0xb159661220043ddc527b4292e11eae39f1977d0b884ef583bd937050881e24ba7e8fc64c4588345f97bb74422ea3a0fb83ad56a34afe1b5afb9db86e51a7efa900';
+    // yarn generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 3, \"maker-asset\": 2, \"taker-asset\": 1, \"maker-asset-data\": 1, \"taker-asset-data\": 0, \"maximum-fill\": 50, \"expiration-height\": 100, \"salt\": 2, \"risk\": true, \"stop\": 1900000000000, \"timestamp\": 2, \"type\": 2 }"
+    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0x7bca76bc4c5afbb917131a1937ad2f2e992f8208c31f81052685b9ac60dcf1fa
+    const right_signature =
+      '0x8af0cdaffaf54c7cdf5fcaa9399719b4c6c7e16715e8a694c124fc9d0fe8c70615fca4cde6f577ba69d09b5244a11b10aaa385679502bfbbeaf9120a8426a57001';
+
+    const block = chain.mineBlock([
+      Tx.contractCall(
+        contractNames.sender_proxy,
+        'match-orders',
+        [
+          left_order,
+          right_order,
+          left_signature,
+          right_signature,
+          types.none(),
+          types.some(
+            types.tuple({
+              timestamp: types.uint(pricePackage.timestamp),
+              value: types.uint(shiftPriceValue(pricePackage.prices[0].value)),
+              signature: oracle_signature,
+            }),
+          ),
+          types.none(),
+        ],
+        sender.address,
+      ),
+    ]);
+    block.receipts[0].result
+      .expectOk()
+      .expectTuple()
+      ['left-order-make'].expectUint(18800);
+  },
+});
+
+Clarinet.test({
+  name: 'Exchange: can match stop-market order (non risk mgmt)',
+  fn(chain: Chain, accounts: Map<string, Account>) {
+    const sender = accounts.get('wallet_1')!;
+
+    const results = prepareChainBasicTest(chain, accounts);
+    results.receipts.forEach((e: any) => {
+      e.result.expectOk();
+    });
+
+    const left_order = orderToTupleCV({
+      sender: 1,
+      'sender-fee': 1e8,
+      maker: 2,
+      'maker-asset': 1,
+      'taker-asset': 2,
+      'maker-asset-data': 18800,
+      'taker-asset-data': 1,
+      'maximum-fill': 100,
+      'expiration-height': 100,
+      salt: 1,
+      risk: false,
+      stop: 0,
+      timestamp: 1,
+      type: 0,
+    });
+
+    const right_order = orderToTupleCV({
+      sender: 1,
+      'sender-fee': 1e8,
+      maker: 3,
+      'maker-asset': 2,
+      'taker-asset': 1,
+      'maker-asset-data': 1,
+      'taker-asset-data': 0,
+      'maximum-fill': 50,
+      'expiration-height': 100,
+      salt: 2,
+      risk: false,
+      stop: 1880000000000,
+      timestamp: 2,
+      type: 2,
+    });
+
+    const oracle_signature =
+      '0x71b534851bcd7584e7743043917606968cfc571c45e765d088aa07c2347b2c7918506ee6002b4014514523494367232c334d22a25167fcf8682a1f79ada700db01';
+
+    const pricePackage: PricePackage = {
+      timestamp: 1662540506183,
+      prices: [
+        {
+          symbol: 'BTC',
+          value: 18805.300000000003,
+        },
+      ],
+    };
+
+    // yarn generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 2, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": 18800, \"taker-asset-data\": 1, \"maximum-fill\": 100, \"expiration-height\": 100, \"salt\": 1, \"risk\": false, \"stop\": 0, \"timestamp\": 1, \"type\": 0 }"
+    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0x940cf3994d264f0b02ececdc7411777de9f5085b1a1aaf9e80b252a763e5b1a9
+    const left_signature =
+      '0xb159661220043ddc527b4292e11eae39f1977d0b884ef583bd937050881e24ba7e8fc64c4588345f97bb74422ea3a0fb83ad56a34afe1b5afb9db86e51a7efa900';
+    // yarn generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 3, \"maker-asset\": 2, \"taker-asset\": 1, \"maker-asset-data\": 1, \"taker-asset-data\": 0, \"maximum-fill\": 50, \"expiration-height\": 100, \"salt\": 2, \"risk\": false, \"stop\": 1880000000000, \"timestamp\": 2, \"type\": 2 }"
+    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0xbf6d165f3ec6acdb11649050f2524fa4e429ba25bf4f7e784b5eddf8397ebf7f
+    const right_signature =
+      '0x9527b8dee469ac6bb4f93fbadc1232c251348f7f9c7f8fb448bda4248d18b87e3d63362e9655de40f5d33b029bcbcd9c38b813093a8db8074f310cb37020801501';
+
+    const block = chain.mineBlock([
+      Tx.contractCall(
+        contractNames.sender_proxy,
+        'match-orders',
+        [
+          left_order,
+          right_order,
+          left_signature,
+          right_signature,
+          types.none(),
+          types.some(
+            types.tuple({
+              timestamp: types.uint(pricePackage.timestamp),
+              value: types.uint(shiftPriceValue(pricePackage.prices[0].value)),
+              signature: oracle_signature,
+            }),
+          ),
+          types.none(),
+        ],
+        sender.address,
+      ),
+    ]);
+    block.receipts[0].result
+      .expectOk()
+      .expectTuple()
+      ['left-order-make'].expectUint(18800);
   },
 });
