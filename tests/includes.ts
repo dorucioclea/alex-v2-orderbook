@@ -204,6 +204,7 @@ export function prepareChainBasicTest(
       ],
       wallet_3.address,
     ),
+    // for oracle pubkey, check ecdsaPublicKey at https://api.redstone.finance/providers
     Tx.contractCall(
       contractNames.exchange,
       'set-trusted-oracle',
