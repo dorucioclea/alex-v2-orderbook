@@ -7,7 +7,15 @@
 // work for both the server and the client side.
 
 import { keccak_256 } from '@noble/hashes/sha3';
-import { bufferCV, BufferCV } from 'micro-stacks/clarity';
+import {
+  bufferCV,
+  BufferCV,
+  listCV,
+  ListCV,
+  tupleCV,
+  uintCV,
+  UIntCV,
+} from 'micro-stacks/clarity';
 import {
   concatByteArrays,
   hexToBytes as hexToBytesMS,
@@ -16,6 +24,7 @@ import {
   compressPublicKey,
   serializePublicKey,
 } from 'micro-stacks/transactions';
+import { PricePackage, ShortSinglePrice } from 'redstone-node/dist/src/types';
 
 // Buffer of "\x19Ethereum Signed Message:\n32"
 export const ethPersonalSignPrefix = new Uint8Array([
@@ -102,9 +111,31 @@ export function shiftPriceValue(value: number) {
  * @returns Uint8Array
  */
 export function stringToUint8Array(input: string) {
-  let codePoints = [];
+  let codePoints: number[] = [];
   for (let i = 0; i < input.length; ++i) codePoints.push(input.charCodeAt(i));
   return new Uint8Array(codePoints);
+}
+
+/**
+ * Converts a RedStone PricePackage object into a Clarity Tuple.
+ * @param pricePackage
+ * @returns Object
+ */
+export function pricePackageToCV(pricePackage: PricePackage): {
+  timestamp: UIntCV;
+  prices: ListCV;
+} {
+  return {
+    timestamp: uintCV(pricePackage.timestamp),
+    prices: listCV(
+      pricePackage.prices.map((entry: ShortSinglePrice) =>
+        tupleCV({
+          symbol: bufferCV(stringToUint8Array(entry.symbol)),
+          value: uintCV(shiftPriceValue(entry.value)),
+        }),
+      ),
+    ),
+  };
 }
 
 /**
@@ -128,13 +159,20 @@ export function liteSignatureToBufferCV(
   return bufferCV(liteSignature);
 }
 
-// console.log(
-//   compressRedstonePubkey(
-//     'xyTvKiCST8bAT6sxrgkLh8UCX2N1eKvawODuxwq4qOHIdDAZFU_3N2m59rkZ0E7m77GsJuf1I8u0oEJEbxAdT7uD2JTwoYEHauXSxyJYvF0RCcZOhl5P1PJwImd44SJYa_9My7L84D5KXB9SKs8_VThe7ZyOb5HSGLNvMIK6A8IJ4Hr_tg9GYm65CRmtcu18S9mhun8vgw2wi7Gw6oR6mc4vU1I-hrU66Fi7YlXwFieP6YSy01JqoLPhU84EunPQzXPouVSbXjgRU5kFVxtdRy4GK2fzEBFYsQwCQgFrySCrFKHV8AInu9jerfof_DxNKiXkBzlB8nc22CrYnvvio_BWyh-gN0hQHZT0gwMR-A7sbXNCQJfReaIZzX_jP6XoB82PnpzmL_j1mJ2lnv2Rn001flBAx9AYxtGXd9s07pA-FggTbEG3Y2UnlWW6l3EJ93E0IfxL0PqGEUlp217mxUHvmTw9fkGDWa8rT9RPmsTyji-kMFSefclw80cBm_iOsIEutGP4S3LDbP-ZVJWDeJOBQQpSgwbisl8qbjl2sMQLQihoG2TQyNbmLwfyq-XSULkXjUi1_6BH36wnDBLWBKF-bS2bLKcGtn3Vjet72lNHxJJilcj8vpauwJG0078S_lO5uGt6oicdGR6eh_NSn6_8za_tXg0G_fohz4Yb1z8', 'hex'),
-//   ),
-// );
+console.log(
+  Buffer.from(
+    compressRedstonePubkey(
+      hexToBytes(
+        '0x04009dd87eb41d96ce8ad94aa22ea8b0ba4ac20c45e42f71726d6b180f93c3f298e333ae7591fe1c9d88234575639be9e81e35ba2fe5ad2c2260f07db49ccb9d0d',
+      ),
+    ),
+  ).toString('hex'),
+);
 
 console.log(
-  'xyTvKiCST8bAT6sxrgkLh8UCX2N1eKvawODuxwq4qOHIdDAZFU_3N2m59rkZ0E7m77GsJuf1I8u0oEJEbxAdT7uD2JTwoYEHauXSxyJYvF0RCcZOhl5P1PJwImd44SJYa_9My7L84D5KXB9SKs8_VThe7ZyOb5HSGLNvMIK6A8IJ4Hr_tg9GYm65CRmtcu18S9mhun8vgw2wi7Gw6oR6mc4vU1I-hrU66Fi7YlXwFieP6YSy01JqoLPhU84EunPQzXPouVSbXjgRU5kFVxtdRy4GK2fzEBFYsQwCQgFrySCrFKHV8AInu9jerfof_DxNKiXkBzlB8nc22CrYnvvio_BWyh-gN0hQHZT0gwMR-A7sbXNCQJfReaIZzX_jP6XoB82PnpzmL_j1mJ2lnv2Rn001flBAx9AYxtGXd9s07pA-FggTbEG3Y2UnlWW6l3EJ93E0IfxL0PqGEUlp217mxUHvmTw9fkGDWa8rT9RPmsTyji-kMFSefclw80cBm_iOsIEutGP4S3LDbP-ZVJWDeJOBQQpSgwbisl8qbjl2sMQLQihoG2TQyNbmLwfyq-XSULkXjUi1_6BH36wnDBLWBKF-bS2bLKcGtn3Vjet72lNHxJJilcj8vpauwJG0078S_lO5uGt6oicdGR6eh_NSn6_8za_tXg0G_fohz4Yb1z8'
-    .length,
+  Buffer.from(
+    liteSignatureToStacksSignature(
+      '0x71b534851bcd7584e7743043917606968cfc571c45e765d088aa07c2347b2c7918506ee6002b4014514523494367232c334d22a25167fcf8682a1f79ada700db1c',
+    ),
+  ).toString('hex'),
 );

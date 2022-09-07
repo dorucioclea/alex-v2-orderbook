@@ -6,6 +6,8 @@ import {
   contractNames,
   orderToTupleCV,
   prepareChainBasicTest,
+  PricePackage,
+  pricePackageToCV,
   types,
 } from './includes.ts';
 
@@ -136,30 +138,30 @@ Clarinet.test({
   fn(chain: Chain, accounts: Map<string, Account>) {
     const sender = accounts.get('wallet_1')!;
 
-    const timestamp = 1662540506183;
-    const data = {
-      value: 18805.300000000003, //TODO: value needs to be uint
-      symbol:
-        '0x42544300000000000000000000000000000000000000000000000000000000',
-    };
+    //Buffer.from(liteSignatureToStacksSignature('0x71b534851bcd7584e7743043917606968cfc571c45e765d088aa07c2347b2c7918506ee6002b4014514523494367232c334d22a25167fcf8682a1f79ada700db1c')).toString('hex')
     const signature =
-      '0x71b534851bcd7584e7743043917606968cfc571c45e765d088aa07c2347b2c7918506ee6002b4014514523494367232c334d22a25167fcf8682a1f79ada700db1c';
+      '0x71b534851bcd7584e7743043917606968cfc571c45e765d088aa07c2347b2c7918506ee6002b4014514523494367232c334d22a25167fcf8682a1f79ada700db01';
+
+    const pricePackage: PricePackage = {
+      timestamp: 1662540506183,
+      prices: [
+        {
+          symbol: 'BTC',
+          value: 18805.300000000003,
+        },
+      ],
+    };
+    const packageCV = pricePackageToCV(pricePackage);
 
     const response = chain.callReadOnlyFn(
       contractNames.oracle,
       'recover-signer',
-      [
-        types.uint(timestamp),
-        types.list([
-          types.tuple({ value: types.uint(data.value), symbol: data.symbol }),
-        ]),
-        signature,
-      ],
+      [packageCV.timestamp, packageCV.prices, signature],
       sender.address,
     );
 
     assertEquals(
-      response.result,
+      response.result.expectOk(),
       '0x03009dd87eb41d96ce8ad94aa22ea8b0ba4ac20c45e42f71726d6b180f93c3f298',
     );
   },

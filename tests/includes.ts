@@ -205,6 +205,7 @@ export function prepareChainBasicTest(
       wallet_3.address,
     ),
     // for oracle pubkey, check ecdsaPublicKey at https://api.redstone.finance/providers
+    // Buffer.from(compressRedstonePubkey(hexToBytes('0x04009dd87eb41d96ce8ad94aa22ea8b0ba4ac20c45e42f71726d6b180f93c3f298e333ae7591fe1c9d88234575639be9e81e35ba2fe5ad2c2260f07db49ccb9d0d'))).toString('hex')
     Tx.contractCall(
       contractNames.exchange,
       'set-trusted-oracle',
@@ -228,4 +229,36 @@ export function prepareChainBasicTest(
       deployer.address,
     ),
   ]);
+}
+
+export type PricePackage = {
+  prices: { symbol: string; value: any }[];
+  timestamp: number;
+};
+
+// One day Clarinet may be able to import actual project source files so we
+// can stop repeating code.
+
+export function shiftPriceValue(value: number) {
+  return Math.round(value * 10 ** 8);
+}
+
+export function stringToUint8Array(input: string) {
+  let codePoints: number[] = [];
+  for (let i = 0; i < input.length; ++i) codePoints.push(input.charCodeAt(i));
+  return new Uint8Array(codePoints);
+}
+
+export function pricePackageToCV(pricePackage: PricePackage) {
+  return {
+    timestamp: types.uint(pricePackage.timestamp),
+    prices: types.list(
+      pricePackage.prices.map((entry: { symbol: string; value: any }) =>
+        types.tuple({
+          symbol: types.buff(stringToUint8Array(entry.symbol)),
+          value: types.uint(shiftPriceValue(entry.value)),
+        }),
+      ),
+    ),
+  };
 }
