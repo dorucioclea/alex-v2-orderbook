@@ -35,6 +35,8 @@
 (define-constant type-order-fok u1)
 (define-constant type-order-ioc u2)
 
+(define-constant ONE_8 u100000000)
+
 (define-data-var contract-owner principal tx-sender)
 (define-map authorised-senders principal bool)
 
@@ -344,7 +346,7 @@
 		(asserts! (is-eq (get maker-asset left-order) (get taker-asset right-order)) err-maker-asset-mismatch)
 		(asserts! (is-eq (get taker-asset left-order) (get maker-asset right-order)) err-taker-asset-mismatch)
 		;; left-order must be older than right-order
-		(asserts! (< (get timestamp left-order) (get timestamp right-order)) err-invalid-timestamp)
+		(asserts! (<= (get timestamp left-order) (get timestamp right-order)) err-invalid-timestamp)
 		;; one side matches and the taker of the other side is smaller than maker.
 		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
 		(asserts! 
@@ -357,7 +359,7 @@
 					(is-eq (get maker-asset-data left-order) (get taker-asset-data right-order))
 					(< (get taker-asset-data left-order) (get maker-asset-data right-order))
 					(or (is-eq (get type right-order) type-order-fok) (is-eq (get type right-order) type-order-ioc))
-			 	)
+				)
 				(and ;; taker (right-order) is a market-limit seller (has to be either FOK or IOC)
 					(is-eq (get taker-asset-data left-order) (get maker-asset-data right-order))
 					(> (get maker-asset-data left-order) (get taker-asset-data right-order))
@@ -377,7 +379,7 @@
 					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
 				)
 				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
-				(asserts! (< (get timestamp left-order) (get timestamp oracle-data)) err-invalid-timestamp)				
+				(asserts! (<= (get timestamp left-order) (get timestamp oracle-data)) err-invalid-timestamp)				
 				(if (get risk left-order) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
 					(begin
 						(asserts! (if is-buy (>= (get value oracle-data) (get stop left-order)) (<= (get value oracle-data) (get stop left-order))) err-stop-not-triggered)
@@ -397,7 +399,7 @@
 					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
 				)
 				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
-				(asserts! (< (get timestamp right-order) (get timestamp oracle-data)) err-invalid-timestamp)				
+				(asserts! (<= (get timestamp right-order) (get timestamp oracle-data)) err-invalid-timestamp)				
 				(if (get risk right-order) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
 					(begin
 						(asserts! (if is-buy (>= (get value oracle-data) (get stop right-order)) (<= (get value oracle-data) (get stop right-order))) err-stop-not-triggered)
@@ -477,7 +479,7 @@
 		(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer amount (get maker order) taker (get maker-asset order)) err-asset-contract-call-failed))
 		(and
 			(> (get sender-fee order) u0)
-			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer (get sender-fee order) (get maker order) (get sender order) u1) err-sender-fee-payment-failed))
+			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer (mul-down (get sender-fee order) amount) (get maker order) (get sender order) (get maker-asset order)) err-sender-fee-payment-failed))
 		)
 		(ok true)
 	)
@@ -591,30 +593,30 @@
 
 (define-read-only (uint128-to-buff-be (n uint))
 	(concat (unwrap-panic (element-at byte-list (mod (/ n u1329227995784915872903807060280344576) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u5192296858534827628530496329220096) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u20282409603651670423947251286016) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u79228162514264337593543950336) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u309485009821345068724781056) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u1208925819614629174706176) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u4722366482869645213696) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u18446744073709551616) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u72057594037927936) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u281474976710656) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u1099511627776) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u4294967296) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u16777216) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u65536) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u256) u256)))
-            (unwrap-panic (element-at byte-list (mod n u256)))
-    )))))))))))))))
+		(concat (unwrap-panic (element-at byte-list (mod (/ n u5192296858534827628530496329220096) u256)))
+		(concat (unwrap-panic (element-at byte-list (mod (/ n u20282409603651670423947251286016) u256)))
+		(concat (unwrap-panic (element-at byte-list (mod (/ n u79228162514264337593543950336) u256)))
+		(concat (unwrap-panic (element-at byte-list (mod (/ n u309485009821345068724781056) u256)))
+		(concat (unwrap-panic (element-at byte-list (mod (/ n u1208925819614629174706176) u256)))
+		(concat (unwrap-panic (element-at byte-list (mod (/ n u4722366482869645213696) u256)))
+		(concat (unwrap-panic (element-at byte-list (mod (/ n u18446744073709551616) u256)))
+		(concat (unwrap-panic (element-at byte-list (mod (/ n u72057594037927936) u256)))
+		(concat (unwrap-panic (element-at byte-list (mod (/ n u281474976710656) u256)))
+		(concat (unwrap-panic (element-at byte-list (mod (/ n u1099511627776) u256)))
+		(concat (unwrap-panic (element-at byte-list (mod (/ n u4294967296) u256)))
+		(concat (unwrap-panic (element-at byte-list (mod (/ n u16777216) u256)))
+		(concat (unwrap-panic (element-at byte-list (mod (/ n u65536) u256)))
+		(concat (unwrap-panic (element-at byte-list (mod (/ n u256) u256)))
+						(unwrap-panic (element-at byte-list (mod n u256)))
+		)))))))))))))))
 )
 
 (define-read-only (uint32-to-buff-be (n uint))
 	(concat (unwrap-panic (element-at byte-list (mod (/ n u16777216) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u65536) u256)))
-    (concat (unwrap-panic (element-at byte-list (mod (/ n u256) u256)))
-            (unwrap-panic (element-at byte-list (mod n u256))
-    ))))
+		(concat (unwrap-panic (element-at byte-list (mod (/ n u65536) u256)))
+		(concat (unwrap-panic (element-at byte-list (mod (/ n u256) u256)))
+						(unwrap-panic (element-at byte-list (mod n u256))
+		))))
 )
 
 (define-private (string-ascii-to-buff-iter (c (string-ascii 1)) (a (buff 128)))
@@ -627,6 +629,10 @@
 
 (define-private (string-ascii-to-byte (c (string-ascii 1)))
 	(unwrap-panic (element-at byte-list (unwrap-panic (index-of ascii-list c))))
+)
+
+(define-read-only (mul-down (a uint) (b uint))
+    (/ (* a b) ONE_8)
 )
 
 (define-constant type-id-uint 0x01)
