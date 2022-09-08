@@ -205,7 +205,7 @@ export function prepareChainBasicTest(
       wallet_3.address,
     ),
     // for oracle pubkey, check ecdsaPublicKey at https://api.redstone.finance/providers
-    // Buffer.from(compressRedstonePubkey(hexToBytes('0x04009dd87eb41d96ce8ad94aa22ea8b0ba4ac20c45e42f71726d6b180f93c3f298e333ae7591fe1c9d88234575639be9e81e35ba2fe5ad2c2260f07db49ccb9d0d'))).toString('hex')
+    // Buffer.from(compressRedstonePubkey(hexToBytes(`${ecdsaPublicKey}`))).toString('hex')
     Tx.contractCall(
       contractNames.exchange,
       'set-trusted-oracle',

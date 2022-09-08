@@ -380,6 +380,12 @@ Clarinet.test({
       type: 2,
     });
 
+    // there are multiple ways to fetch redstone price packages, one of which is to use their HTTP API: https://api.docs.redstone.finance/http-api/prices
+    // for example, calling 'http GET https://api.redstone.finance/prices symbol==BTC provider==redstone' will return the latest oracle price of BTCUSD.
+    // we need four data from the output, timestamp, symbol, value and signature.
+
+    // start with liteEvmSignature.
+    // the signature = Buffer.from(liteSignatureToStacksSignature(`${liteEvmSignature}`)).toString('hex')
     const oracle_signature =
       '0x71b534851bcd7584e7743043917606968cfc571c45e765d088aa07c2347b2c7918506ee6002b4014514523494367232c334d22a25167fcf8682a1f79ada700db01';
 
