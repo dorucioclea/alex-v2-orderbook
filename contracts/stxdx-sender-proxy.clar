@@ -35,8 +35,8 @@
 )
 
 (define-public (match-orders
-	(left-order {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint})
-	(right-order {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint})
+	(left-order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint })
+	(right-order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint })
 	(left-signature (buff 65))
 	(right-signature (buff 65))
 	(left-oracle-data (optional { timestamp: uint, value: uint, signature: (buff 65) }))
@@ -51,8 +51,8 @@
 (define-private (match-orders-iter 
 	(matched-orders
 		{
-			left-order: {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint},
-			right-order: {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint},
+			left-order: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint },
+			right-order: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint },
 			left-signature: (buff 65),
 			right-signature: (buff 65),
 			left-oracle-data: (optional { timestamp: uint, value: uint, signature: (buff 65) }),
@@ -60,15 +60,15 @@
 			fill: (optional uint)
 		}
 	))
-	(match-orders (get left-order matched-orders) (get right-order matched-orders) (get left-signature matched-orders) (get right-signature matched-orders) (get left-oracle-data matched-orders) (get right-oracle-data matched-orders) (get fill matched-orders))
+	(as-contract (contract-call? .stxdx-exchange-zero match-orders (get left-order matched-orders) (get right-order matched-orders) (get left-signature matched-orders) (get right-signature matched-orders) (get left-oracle-data matched-orders) (get right-oracle-data matched-orders) (get fill matched-orders)))
 )
 
 (define-public (match-orders-many 
 	(matched-orders-list
 		(list 200 
 			{
-				left-order: {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint},
-				right-order: {sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: (buff 256), taker-asset-data: (buff 256), maximum-fill: uint, expiration-height: uint, extra-data: (buff 256), salt: uint},
+				left-order: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint },
+				right-order: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint },
 				left-signature: (buff 65),
 				right-signature: (buff 65),
 				left-oracle-data: (optional { timestamp: uint, value: uint, signature: (buff 65) }),
@@ -77,6 +77,9 @@
 			}
 		)
 	))
-	(ok (map match-orders-iter matched-orders-list))
+	(begin
+		(try! (is-authorised-sender))
+		(ok (map match-orders-iter matched-orders-list))
+	)
 )
 

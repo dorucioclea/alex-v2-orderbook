@@ -52,5 +52,10 @@
     "arrowParens": "avoid",
     "trailingComma": "all",
     "printWidth": 80
+  },
+  "dependencies": {
+    "micro-stacks": "^1.1.2",
+    "node-gyp": "^9.1.0",
+    "redstone-api": "^0.4.11"
   }
 }
