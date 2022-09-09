@@ -474,7 +474,8 @@
 
 (define-private (settle-to-exchange 
 	(order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) })
-	(amount uint)	
+	(amount uint)
+	(fee-amount uint)	
 	)
 	(let 
 		(
@@ -483,7 +484,7 @@
 		(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer amount (get maker order) exchange-uid (get maker-asset order)) err-asset-contract-call-failed))
 		(and
 			(> (get sender-fee order) u0)
-			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer (get sender-fee order) (get maker order) (get sender order) u1) err-sender-fee-payment-failed))
+			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer fee-amount (get maker order) (get sender order) (get maker-asset order)) err-sender-fee-payment-failed))
 		)
 		(ok true)
 	)
@@ -492,15 +493,16 @@
 (define-private (settle-from-exchange 
 	(order { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) })
 	(amount uint)	
+	(fee-amount uint)
 	)
 	(let 
 		(
 			(exchange-uid (as-contract (try! (contract-call? .stxdx-registry get-user-id-or-fail tx-sender))))
 		)
-		(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer amount exchange-uid (get maker order) (get taker-asset order)) err-asset-contract-call-failed))
+		(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer (- amount fee-amount) exchange-uid (get maker order) (get taker-asset order)) err-asset-contract-call-failed))
 		(and
-			(> (get sender-fee order) u0)
-			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer (get sender-fee order) (get maker order) (get sender order) u1) err-sender-fee-payment-failed))
+			(> fee-amount u0)
+			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer fee-amount exchange-uid (get sender order) (get taker-asset order)) err-sender-fee-payment-failed))
 		)
 		(ok true)
 	)
