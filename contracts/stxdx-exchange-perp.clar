@@ -38,6 +38,8 @@
 (define-constant type-order-fok u1)
 (define-constant type-order-ioc u2)
 
+(define-constant ONE_8 u100000000)
+
 (define-constant structured-data-prefix 0x534950303138)
 
 (define-data-var contract-owner principal tx-sender)
@@ -497,7 +499,7 @@
 		)
 		(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer amount (get maker order) exchange-uid (get maker-asset order)) err-asset-contract-call-failed))
 		(and
-			(> (get sender-fee order) u0)
+			(> fee-amount u0)
 			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer fee-amount (get maker order) (get sender order) (get maker-asset order)) err-sender-fee-payment-failed))
 		)
 		(ok true)
@@ -584,7 +586,7 @@
 					}
 				)
 				;; when adding position, you pay initial margin to exchange
-				(try! (settle-to-exchange parent-order (* fillable (- left-parent-make (get taker-asset-data left-linked)))))
+				(try! (settle-to-exchange parent-order (* fillable (- left-parent-make (get taker-asset-data left-linked))) (mul-down (get sender-fee parent-order) (* fillable left-parent-make))))
 			)
 			(let 
 				;; if linked order does not exist, then it is to reduce position (or liquidation by the linked order)
@@ -601,7 +603,7 @@
 								
 				(map-delete linked-orders (get linked-hash parent-order))
 				(map-delete positions (get linked-hash parent-order))
-				(try! (settle-from-exchange parent-order (* fillable (- right-parent-make (get maker-asset-data linked-order)))))
+				(try! (settle-from-exchange parent-order (* fillable (- right-parent-make (get maker-asset-data linked-order))) (mul-down (get sender-fee parent-order) (* fillable right-parent-make))))
 			)
 		)	
 
@@ -631,7 +633,7 @@
 						linked-hash: (get linked-hash parent-order)
 					}
 				)
-				(try! (settle-to-exchange parent-order (* fillable (- right-parent-make (get taker-asset-data right-linked)))))
+				(try! (settle-to-exchange parent-order (* fillable (- right-parent-make (get taker-asset-data right-linked))) (mul-down (get sender-fee parent-order) (* fillable right-parent-make))))
 			)
 			(let 
 				;; if linked order does not exist, then it is to reduce position (or liquidation by the linked order)
@@ -648,7 +650,7 @@
 								
 				(map-delete linked-orders (get linked-hash parent-order))
 				(map-delete positions (get linked-hash parent-order))
-				(try! (settle-from-exchange parent-order (* fillable (- left-parent-make (get maker-asset-data linked-order)))))
+				(try! (settle-from-exchange parent-order (* fillable (- left-parent-make (get maker-asset-data linked-order))) (mul-down (get sender-fee parent-order) (* fillable left-parent-make))))
 			)
 		)			
 
@@ -729,6 +731,10 @@
 
 (define-read-only (string-ascii-to-buff (str (string-ascii 128)))
 	(fold string-ascii-to-buff-iter str 0x)
+)
+
+(define-read-only (mul-down (a uint) (b uint))
+    (/ (* a b) ONE_8)
 )
 
 (define-constant type-id-uint 0x01)
