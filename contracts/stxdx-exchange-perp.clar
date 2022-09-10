@@ -43,6 +43,19 @@
 (define-data-var contract-owner principal tx-sender)
 (define-map authorised-senders principal bool)
 
+(define-map risk-params uint { max-leverage: uint, haircut: uint })
+
+(define-read-only (get-risk-params-or-fail (asset-id uint))
+	(ok (unwrap! (map-get? risk-params asset-id) err-unknown-asset-id))
+)
+
+(define-public (set-risk-params (asset-id uint) (params { max-leverage: uint, haircut: uint }))
+	(begin 
+		(try! (is-contract-owner))
+		(ok (map-set risk-params asset-id params))
+	)
+)
+
 (define-map positions 
 	(buff 32)
 	{
@@ -430,6 +443,7 @@
 				(asserts! (is-eq (get maximum-fill left-parent) (get maximum-fill left-linked)) err-maximum-fill-mismatch)
 				(asserts! (is-eq (get expiration-height left-linked) u340282366920938463463374607431768211455) err-expiration-height-mismatch)
 				(asserts! (is-eq (hash-order left-linked) (get linked-hash left-parent)) err-order-hash-mismatch)
+				;; TODO: left-side FOK => will there ever be a match?
 				(asserts! (is-eq type-order-fok (get type left-parent)) err-invalid-order-type)
 			)
 			true
@@ -549,6 +563,10 @@
 			 	(
 					(parent-order (get parent left-order))
 				)
+
+				;; TODO: check if stop is within parent limit price * (1 +/- haircut / max-leverage)
+				;; TODO: check if linked limit price is within parent limit price * (1 +/- 1 / max-leverage)
+
 				(map-set linked-orders (get linked-hash parent-order) true)
 				;; TODO: can a duplicate enter the map?
 				(map-set 
@@ -593,6 +611,10 @@
 			 	(
 					(parent-order (get parent right-order))
 				)
+
+				;; TODO: check if stop is within parent limit price * (1 +/- haircut / max-leverage)
+				;; TODO: check if linked limit price is within parent limit price * (1 +/- 1 / max-leverage)
+
 				(map-set linked-orders (get linked-hash parent-order) true)
 				;; TODO: can a duplicate enter the map?
 				(map-set 
