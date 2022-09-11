@@ -1,6 +1,7 @@
 import {
   Account,
   assertEquals,
+  cancelToTupleCV,
   Chain,
   Clarinet,
   contractNames,
@@ -8,6 +9,7 @@ import {
   prepareChainBasicTest,
   PricePackage,
   pricePackageToCV,
+  Tx,
   types,
 } from './includes.ts';
 
@@ -134,7 +136,7 @@ Clarinet.test({
 });
 
 Clarinet.test({
-  name: 'Oracle: can recover signer',
+  name: 'Core: oracle can recover signer',
   fn(chain: Chain, accounts: Map<string, Account>) {
     const sender = accounts.get('wallet_1')!;
 
@@ -164,5 +166,137 @@ Clarinet.test({
       response.result.expectOk(),
       '0x03009dd87eb41d96ce8ad94aa22ea8b0ba4ac20c45e42f71726d6b180f93c3f298',
     );
+  },
+});
+
+Clarinet.test({
+  name: 'Core: can cancel orders',
+  fn(chain: Chain, accounts: Map<string, Account>) {
+    const sender = accounts.get('wallet_1')!;
+
+    const results = prepareChainBasicTest(chain, accounts);
+    results.receipts.forEach((e: any) => {
+      e.result.expectOk();
+    });
+
+    const order = orderToTupleCV({
+      sender: 1,
+      'sender-fee': 1e8,
+      maker: 2,
+      'maker-asset': 1,
+      'taker-asset': 2,
+      'maker-asset-data': 14e8,
+      'taker-asset-data': 1e8,
+      'maximum-fill': 1000,
+      'expiration-height': 100,
+      salt: 1,
+      risk: false,
+      stop: 0,
+      timestamp: 1,
+      type: 0,
+    });
+    const response = chain.callReadOnlyFn(
+      contractNames.exchange,
+      'hash-order',
+      [order],
+      sender.address,
+    );
+
+    // yarn run generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 2, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": 14e8, \"taker-asset-data\": 1e8, \"maximum-fill\": 1000, \"expiration-height\": 100, \"salt\": 1, \"risk\": false, \"stop\": 0, \"timestamp\": 1, \"type\": 0 }"
+    const order_hash =
+      '0x4502a389f870dab8b80a00522540a3d4bf9b9cb1a09246caf70d93a1c1d5c9ac';
+    assertEquals(response.result, order_hash);
+
+    const cancel_order = cancelToTupleCV({ hash: order_hash, cancel: true });
+    const response_cancel = chain.callReadOnlyFn(
+      contractNames.exchange,
+      'hash-cancel-order',
+      [order_hash],
+      sender.address,
+    );
+
+    // yarn run generate-cancel-hash "{ \"hash\": \"0x4502a389f870dab8b80a00522540a3d4bf9b9cb1a09246caf70d93a1c1d5c9ac\", \"cancel\": true }"
+    assertEquals(
+      response_cancel.result,
+      '0x7c6a9fb22d1c8b494d1dc7204e5ea2979de1a9eacda028d6f038a2a2ad7b4ff5',
+    );
+
+    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0x7c6a9fb22d1c8b494d1dc7204e5ea2979de1a9eacda028d6f038a2a2ad7b4ff5
+    const cancel_signature =
+      '0x7a8e332581fd571ecc2495ca65d5b5620f0c5bff3692bee9e4e6940ef8be72233dd025d94596bf0b28358823a4e0183403c997db9851a07be81054fd53bfb9d101';
+
+    const block = chain.mineBlock([
+      Tx.contractCall(
+        contractNames.exchange,
+        'cancel-order',
+        [order, cancel_signature],
+        sender.address,
+      ),
+    ]);
+    block.receipts[0].result.expectOk();
+    const response_fill = chain.callReadOnlyFn(
+      contractNames.registry,
+      'get-order-fill',
+      [order_hash],
+      sender.address,
+    );
+    response_fill.result.expectUint(1000);
+  },
+});
+
+Clarinet.test({
+  name: 'Core: sender can cancel FOK/IOC orders without signature',
+  fn(chain: Chain, accounts: Map<string, Account>) {
+    const sender = accounts.get('wallet_1')!;
+
+    const results = prepareChainBasicTest(chain, accounts);
+    results.receipts.forEach((e: any) => {
+      e.result.expectOk();
+    });
+
+    const order = orderToTupleCV({
+      sender: 1,
+      'sender-fee': 1e8,
+      maker: 2,
+      'maker-asset': 1,
+      'taker-asset': 2,
+      'maker-asset-data': 14e8,
+      'taker-asset-data': 1e8,
+      'maximum-fill': 1000,
+      'expiration-height': 100,
+      salt: 1,
+      risk: false,
+      stop: 0,
+      timestamp: 1,
+      type: 2,
+    });
+    const response = chain.callReadOnlyFn(
+      contractNames.exchange,
+      'hash-order',
+      [order],
+      sender.address,
+    );
+
+    // yarn run generate-order-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 2, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": 14e8, \"taker-asset-data\": 1e8, \"maximum-fill\": 1000, \"expiration-height\": 100, \"salt\": 1, \"risk\": false, \"stop\": 0, \"timestamp\": 1, \"type\": 2 }"
+    const order_hash =
+      '0x26f51026214cfae79589cf3eed9aab3c9fff9065b910a6e9f8856f75594a6002';
+    assertEquals(response.result, order_hash);
+
+    const block = chain.mineBlock([
+      Tx.contractCall(
+        contractNames.exchange,
+        'cancel-order',
+        [order, '0x'],
+        sender.address,
+      ),
+    ]);
+    block.receipts[0].result.expectOk();
+    const response_fill = chain.callReadOnlyFn(
+      contractNames.registry,
+      'get-order-fill',
+      [order_hash],
+      sender.address,
+    );
+    response_fill.result.expectUint(1000);
   },
 });
