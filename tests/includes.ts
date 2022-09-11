@@ -63,6 +63,23 @@ export function orderToTupleCV(order: { [key: string]: any }) {
   return tupleCV(orderToTuple(order));
 }
 
+function cancelToTuple(order: { [key: string]: any }) {
+  const expected_struct = {
+    hash: buff,
+    cancel: boolCV,
+  };
+  const orderTuple: { [key: string]: any } = {};
+  for (const [key, func] of Object.entries(expected_struct))
+    if (key in order) orderTuple[key] = func(order[key]);
+    else throw new Error(`Order object missing ${key} field`);
+
+  return orderTuple;
+}
+
+export function cancelToTupleCV(order: { [key: string]: any }) {
+  return tupleCV(cancelToTuple(order));
+}
+
 export function prepareChainBasicTest(
   chain: Chain,
   accounts: Map<string, Account>,
