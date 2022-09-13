@@ -359,9 +359,9 @@
 		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 		;;;;;;;;;;;;;;;;;;;;;;;; COMMON CHECKS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-		(try! (is-authorised-sender))
+		(try! (is-authorised-sender))	
 		;; there are more fills to do
-		(match fill value (asserts! (>= fillable value) err-maximum-fill-reached) (asserts! (> fillable u0) err-maximum-fill-reached))		
+		(match fill value (asserts! (>= fillable value) err-maximum-fill-reached) (asserts! (> fillable u0) err-maximum-fill-reached))					
 		;; both orders are not expired
 		(asserts! (< block-height (get expiration-height left-parent)) err-left-order-expired)
 		(asserts! (< block-height (get expiration-height right-parent)) err-right-order-expired)				
@@ -445,10 +445,16 @@
 				(asserts! (is-eq (get maximum-fill left-parent) (get maximum-fill left-linked)) err-maximum-fill-mismatch)
 				(asserts! (is-eq (get expiration-height left-linked) u340282366920938463463374607431768211455) err-expiration-height-mismatch)
 				(asserts! (is-eq (hash-order left-linked) (get linked-hash left-parent)) err-order-hash-mismatch)
-				;; TODO: left-side FOK => will there ever be a match?
-				(asserts! (is-eq type-order-fok (get type left-parent)) err-invalid-order-type)
 			)
-			true
+			(let
+				;; if linked order does not exist, then it is to reduce position (or liquidation by the linked order)
+				;; linked-hash of parent contains the hash of the initiating order
+				(
+					(filled (contract-call? .stxdx-registry get-order-fill (get linked-hash left-parent)))
+					(fillable_ (min (- filled left-order-fill) (- (get maximum-fill right-parent) right-order-fill)))
+				)
+				(match fill value (asserts! (>= fillable_ value) err-maximum-fill-reached) (asserts! (> fillable_ u0) err-maximum-fill-reached))					
+			)
 		)
 		(match (get linked right-order)
 			right-linked	
@@ -460,10 +466,17 @@
 				(asserts! (is-eq (get maximum-fill right-parent) (get maximum-fill right-linked)) err-maximum-fill-mismatch)		
 				(asserts! (is-eq (get expiration-height right-linked) u340282366920938463463374607431768211455) err-expiration-height-mismatch)		
 				(asserts! (is-eq (hash-order right-linked) (get linked-hash right-parent)) err-order-hash-mismatch)
-				(asserts! (is-eq type-order-fok (get type right-parent)) err-invalid-order-type)
 			)
-			true
-		)
+			(let
+				;; if linked order does not exist, then it is to reduce position (or liquidation by the linked order)
+				;; linked-hash of parent contains the hash of the initiating order
+				(
+					(filled (contract-call? .stxdx-registry get-order-fill (get linked-hash right-parent)))
+					(fillable_ (min (- filled right-order-fill) (- (get maximum-fill left-parent) left-order-fill)))
+				)
+				(match fill value (asserts! (>= fillable_ value) err-maximum-fill-reached) (asserts! (> fillable_ u0) err-maximum-fill-reached))					
+			)
+		)		
 
 		(asserts! (validate-authorisation left-order-fill (get maker left-user) (get maker-pubkey left-user) left-order-hash left-signature) err-left-authorisation-failed)
 		(asserts! (validate-authorisation right-order-fill (get maker right-user) (get maker-pubkey right-user) right-order-hash right-signature) err-right-authorisation-failed)
