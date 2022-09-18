@@ -17,6 +17,7 @@ const contractNames = {
   sender_proxy: 'stxdx-sender-proxy',
   wallet: 'stxdx-wallet-zero',
   oracle: 'redstone-verify',
+  perpetual: 'stxdx-exchange-perp',
 };
 
 const uintCV = types.uint;
@@ -61,6 +62,36 @@ export function orderToTuple(order: { [key: string]: any }) {
 
 export function orderToTupleCV(order: { [key: string]: any }) {
   return tupleCV(orderToTuple(order));
+}
+
+export function perpOrderToTuple(order: { [key: string]: any }) {
+  const expected_struct: { [key: string]: Function } = {
+    sender: uintCV,
+    'sender-fee': uintCV,
+    maker: uintCV,
+    'maker-asset': uintCV,
+    'taker-asset': uintCV,
+    'maker-asset-data': uintCV,
+    'taker-asset-data': uintCV,
+    'maximum-fill': uintCV,
+    'expiration-height': uintCV,
+    salt: uintCV,
+    risk: boolCV,
+    stop: uintCV,
+    timestamp: uintCV,
+    type: uintCV,
+    'linked-hash': buff,
+  };
+  const orderTuple: { [key: string]: any } = {};
+  for (const [key, func] of Object.entries(expected_struct))
+    if (key in order) orderTuple[key] = func(order[key]);
+    else throw new Error(`Order object missing ${key} field`);
+
+  return orderTuple;
+}
+
+export function perpOrderToTupleCV(order: { [key: string]: any }) {
+  return tupleCV(perpOrderToTuple(order));
 }
 
 function cancelToTuple(order: { [key: string]: any }) {

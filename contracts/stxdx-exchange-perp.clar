@@ -90,7 +90,7 @@
 (define-constant serialized-key-hash (serialize-tuple-key "hash"))
 (define-constant serialized-cancel-header (concat type-id-tuple (uint32-to-buff-be u2)))
 
-(define-private (hash-cancel-order (order-hash (buff 32)))
+(define-read-only (hash-cancel-order (order-hash (buff 32)))
 	(sha256
 		(concat serialized-cancel-header
 

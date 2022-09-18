@@ -6,6 +6,7 @@ import {
   Clarinet,
   contractNames,
   orderToTupleCV,
+  perpOrderToTupleCV,
   prepareChainBasicTest,
   PricePackage,
   pricePackageToCV,
@@ -298,5 +299,42 @@ Clarinet.test({
       sender.address,
     );
     response_fill.result.expectUint(1000);
+  },
+});
+
+Clarinet.test({
+  name: 'Core: can hash perp orders',
+  fn(chain: Chain, accounts: Map<string, Account>) {
+    const sender = accounts.get('wallet_1')!;
+
+    const order = perpOrderToTupleCV({
+      sender: 1,
+      'sender-fee': 1e8,
+      maker: 2,
+      'maker-asset': 1,
+      'taker-asset': 2,
+      'maker-asset-data': 14e8,
+      'taker-asset-data': 1e8,
+      'maximum-fill': 1000,
+      'expiration-height': 100,
+      salt: 1,
+      risk: false,
+      stop: 0,
+      timestamp: 1,
+      type: 0,
+      'linked-hash': '0x',
+    });
+    const response = chain.callReadOnlyFn(
+      contractNames.perpetual,
+      'hash-order',
+      [order],
+      sender.address,
+    );
+
+    // yarn run generate-perpetual-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 2, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": 14e8, \"taker-asset-data\": 1e8, \"maximum-fill\": 1000, \"expiration-height\": 100, \"salt\": 1, \"risk\": false, \"stop\": 0, \"timestamp\": 1, \"type\": 0, \"linked-hash\": \"0x\" }"
+    assertEquals(
+      response.result,
+      '0xc1d513ea01093e5aef0005ae6e5b89451d3568fec646aa6968287b7e52574302',
+    );
   },
 });
