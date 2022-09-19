@@ -439,7 +439,10 @@
 		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 		(match (get linked left-order)
 			left-linked 
-			(begin 
+			(let 
+				(
+					(is-buy (is-some (map-get? oracle-symbols (get taker-asset parent-order))))
+				) 
 				;; validate parent-linked data
 				(asserts! (is-eq (get maker left-parent) (get maker left-linked)) err-maker-mismatch)
 				(asserts! (is-eq (get maker-asset left-parent) (get taker-asset left-linked)) err-maker-asset-mismatch)
@@ -447,6 +450,32 @@
 				(asserts! (is-eq (get maximum-fill left-parent) (get maximum-fill left-linked)) err-maximum-fill-mismatch)
 				(asserts! (is-eq (get expiration-height left-linked) u340282366920938463463374607431768211455) err-expiration-height-mismatch)
 				(asserts! (is-eq left-order-hash (get linked-hash left-linked)) err-order-hash-mismatch)			
+				(if is-buy 
+					(let 
+						(
+							(parent-limit-in-fixed (/ (* (get taker-asset-data parent-order) ONE_8) (get maker-asset-data parent-order)))
+							(linked-limit-in-fixed (/ (* (get maker-asset-data left-linked) ONE_8) (get taker-asset-data left-linked)))
+							(risk-params_ (try! (get-risk-params-or-fail (get taker-asset parent-order))))
+							(stop-floor-in-fixed (mul-down parent-limit-in-fixed (/ (- (get max-leverage risk-params_) (get haircut-in-fixed risk-params_)) (get max-leverage risk-params_))))
+							(linked-floor-in-fixed (mul-down parent-limit-in-fixed (/ (- (get max-leverage risk-params_) ONE_8) (get max-leverage risk-params_))))
+						) 
+						(asserts! (>= (get stop left-linked) linked-limit-in-fixed) err-invalid-stop-price)
+						(asserts! (>= (get stop left-linked) stop-floor-in-fixed) err-invalid-stop-price)
+						(asserts! (>= linked-limit-in-fixed linked-floor-in-fixed) err-invalid-limit-price)
+					)
+					(let 
+						(
+							(parent-limit-in-fixed (/ (* (get maker-asset-data parent-order) ONE_8) (get taker-asset-data parent-order)))
+							(linked-limit-in-fixed (/ (* (get taker-asset-data left-linked) ONE_8) (get maker-asset-data left-linked)))
+							(risk-params_ (try! (get-risk-params-or-fail (get maker-asset parent-order))))
+							(stop-cap-in-fixed (mul-down parent-limit-in-fixed (/ (+ (get max-leverage risk-params_) (get haircut-in-fixed risk-params_)) (get max-leverage risk-params_))))
+							(linked-cap-in-fixed (mul-down parent-limit-in-fixed (/ (+ (get max-leverage risk-params_) ONE_8) (get max-leverage risk-params_))))
+						) 
+						(asserts! (<= (get stop left-linked) linked-limit-in-fixed) err-invalid-stop-price)
+						(asserts! (<= (get stop left-linked) stop-cap-in-fixed) err-invalid-stop-price)
+						(asserts! (<= linked-limit-in-fixed linked-cap-in-fixed) err-invalid-limit-price)
+					)					
+				)				
 			)
 			(let
 				;; if linked order does not exist, then it is to reduce position (or liquidation by the linked order)
@@ -457,6 +486,11 @@
 					(filled (contract-call? .stxdx-registry get-order-fill (get linked-hash left-parent)))
 					(fillable_ (min (- filled left-order-fill) (- (get maximum-fill right-parent) right-order-fill)))
 				)
+				(asserts! (is-eq (get maker parent-order) (get maker linked-order)) err-maker-mismatch)
+				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset linked-order)) err-maker-asset-mismatch)
+				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset linked-order)) err-taker-asset-mismatch)
+				;; numeraire must be the same
+				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data linked-order)) err-asset-data-mismatch)
 				(match fill value (asserts! (>= fillable_ value) err-maximum-fill-reached) (asserts! (> fillable_ u0) err-maximum-fill-reached))					
 			)
 		)
@@ -584,36 +618,8 @@
 				;; if linked order exists, then it is to add position
 				;; linked-hash of parent contains the hash of linked, for validation
 			 	(
-					(parent-order (get parent left-order))
-					(is-buy (is-some (map-get? oracle-symbols (get taker-asset parent-order))))
+					(parent-order (get parent left-order))					
 				)
-				(if is-buy 
-					(let 
-						(
-							(parent-limit-in-fixed (/ (* (get taker-asset-data parent-order) ONE_8) (get maker-asset-data parent-order)))
-							(linked-limit-in-fixed (/ (* (get maker-asset-data left-linked) ONE_8) (get taker-asset-data left-linked)))
-							(risk-params_ (try! (get-risk-params-or-fail (get taker-asset parent-order))))
-							(stop-floor-in-fixed (mul-down parent-limit-in-fixed (/ (- (get max-leverage risk-params_) (get haircut-in-fixed risk-params_)) (get max-leverage risk-params_))))
-							(linked-floor-in-fixed (mul-down parent-limit-in-fixed (/ (- (get max-leverage risk-params_) ONE_8) (get max-leverage risk-params_))))
-						) 
-						(asserts! (>= (get stop left-linked) linked-limit-in-fixed) err-invalid-stop-price)
-						(asserts! (>= (get stop left-linked) stop-floor-in-fixed) err-invalid-stop-price)
-						(asserts! (>= linked-limit-in-fixed linked-floor-in-fixed) err-invalid-limit-price)
-					)
-					(let 
-						(
-							(parent-limit-in-fixed (/ (* (get maker-asset-data parent-order) ONE_8) (get taker-asset-data parent-order)))
-							(linked-limit-in-fixed (/ (* (get taker-asset-data left-linked) ONE_8) (get maker-asset-data left-linked)))
-							(risk-params_ (try! (get-risk-params-or-fail (get maker-asset parent-order))))
-							(stop-cap-in-fixed (mul-down parent-limit-in-fixed (/ (+ (get max-leverage risk-params_) (get haircut-in-fixed risk-params_)) (get max-leverage risk-params_))))
-							(linked-cap-in-fixed (mul-down parent-limit-in-fixed (/ (+ (get max-leverage risk-params_) ONE_8) (get max-leverage risk-params_))))
-						) 
-						(asserts! (<= (get stop left-linked) linked-limit-in-fixed) err-invalid-stop-price)
-						(asserts! (<= (get stop left-linked) stop-cap-in-fixed) err-invalid-stop-price)
-						(asserts! (<= linked-limit-in-fixed linked-cap-in-fixed) err-invalid-limit-price)
-					)					
-				)
-
 				(map-set linked-orders (get linked-hash parent-order) true)
 				(map-set 
 					positions
@@ -636,13 +642,7 @@
 				(
 					(parent-order (get parent left-order))
 					(linked-order (unwrap! (map-get? positions (get linked-hash parent-order)) err-linked-order-not-found))
-				)
-				(asserts! (is-eq (get maker parent-order) (get maker linked-order)) err-maker-mismatch)
-				(asserts! (is-eq (get maker-asset parent-order) (get taker-asset linked-order)) err-maker-asset-mismatch)
-				(asserts! (is-eq (get taker-asset parent-order) (get maker-asset linked-order)) err-taker-asset-mismatch)
-				;; numeraire must be the same
-				(asserts! (is-eq (get maker-asset-data parent-order) (get taker-asset-data linked-order)) err-asset-data-mismatch)
-								
+				)				
 				(map-delete linked-orders (get linked-hash parent-order))
 				(map-delete positions (get linked-hash parent-order))
 				(try! (settle-from-exchange parent-order (* fillable (- right-parent-make (get maker-asset-data linked-order))) (mul-down (get sender-fee parent-order) (* fillable right-parent-make))))
