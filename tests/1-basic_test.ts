@@ -386,7 +386,7 @@ Clarinet.test({
         '0xd55293082781e8706ae5f43673a5332e063dc8d3846e9c54a78dfa6dadc69577',
     });
 
-    const right_order = orderToTupleCV({
+    const right_order = perpOrderToTupleCV({
       sender: 1,
       'sender-fee': 1e8,
       maker: 3,
@@ -404,7 +404,7 @@ Clarinet.test({
       'linked-hash': '0x',
     });
 
-    const right_linked = orderToTupleCV({
+    const right_linked = perpOrderToTupleCV({
       sender: 1,
       'sender-fee': 1e8,
       maker: 3,
@@ -419,7 +419,8 @@ Clarinet.test({
       stop: 14.35e8,
       timestamp: 2,
       type: 0,
-      'linked-hash': '0x',
+      'linked-hash':
+        '0x5d237553fb165c63f11782ee66d2779d6dd1a4b89f72aca7fd402c77d35954b6',
     });
     // console.log(left_order, right_order);
 
@@ -430,19 +431,19 @@ Clarinet.test({
     const right_order_hash =
       '0x5d237553fb165c63f11782ee66d2779d6dd1a4b89f72aca7fd402c77d35954b6';
 
-    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0xa891215d95196515149eb214c5812b5b9b0f102edc7a8dae3f30940dbed1bd70
+    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0xd55293082781e8706ae5f43673a5332e063dc8d3846e9c54a78dfa6dadc69577
     const left_signature =
-      '0x51b195c240eae83f7c42438a673c2338105851ab11d0ac6ded878d14981e9b7479b1a62a18af10b34a21acd0392cec7cfbb3b8ea19b355a7268e2526bddd66f401';
-    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0xad5faa9b4b22cd3a55e59b763e052674fb29c9334734f38146250239e25e15c6
+      '0x2a4b0ce955bde746a43c5554722d35f7c78464bcf9c0aca8e9601724649c9478737eeb910dbe636bcce96c93bc2e76e46dfe7a4e09f1e043a624141682ddb08801';
+    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0x5d237553fb165c63f11782ee66d2779d6dd1a4b89f72aca7fd402c77d35954b6
     const right_signature =
-      '0x5e3c2e1f8d414b3abef2891a9198fe278534a648e2e01d92af4c52b381cfe4b5756fd6a7e6111110bf6995463a73ab055863d9e131de34cb9a467c73918bb49600';
+      '0xea7104b0fdc8eb2301da1615aed16d01fe806516c3658d6e99698fd7b711085b1c3b01992dd0fecb1d3271f7984c020230e4017ff22f02aeed5357d8ef047d3600';
 
     let response = chain.callReadOnlyFn(
-      contractNames.exchange,
+      contractNames.perpetual,
       'validate-match',
       [
-        left_order,
-        right_order,
+        types.tuple({ parent: left_order, linked: types.some(left_linked) }),
+        types.tuple({ parent: right_order, linked: types.some(right_linked) }),
         left_signature,
         right_signature,
         types.none(),
@@ -451,6 +452,7 @@ Clarinet.test({
       ],
       sender.address,
     );
+    console.log(response.result);
     let response_tuple = response.result.expectOk().expectTuple();
     assertEquals(response_tuple, {
       fillable: types.uint(50),
