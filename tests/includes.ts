@@ -332,8 +332,8 @@ export function prepareChainBasicTest(
       [
         types.uint(2),
         types.tuple({
-          'max-leverage': types.uint(100),
-          'haircut-in-fixed': types.uint(0e8),
+          'max-leverage': types.uint(50),
+          'haircut-in-fixed': types.uint(0.1e8),
         }),
       ],
       deployer.address,

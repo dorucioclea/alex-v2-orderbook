@@ -452,16 +452,16 @@ Clarinet.test({
       ],
       sender.address,
     );
-    console.log(response.result);
+    // console.log(response.result);
     let response_tuple = response.result.expectOk().expectTuple();
     assertEquals(response_tuple, {
-      fillable: types.uint(50),
+      fillable: types.uint(50e8),
       'left-order-fill': types.uint(0),
       'left-order-hash': left_order_hash,
       'right-order-fill': types.uint(0),
       'right-order-hash': right_order_hash,
-      'left-order-make': types.uint(14e8),
-      'right-order-make': types.uint(1e8),
+      'left-order-make': types.uint(14000),
+      'right-order-make': types.uint(1),
     });
   },
 });
