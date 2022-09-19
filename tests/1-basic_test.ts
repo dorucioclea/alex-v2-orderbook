@@ -355,9 +355,9 @@ Clarinet.test({
       maker: 2,
       'maker-asset': 1,
       'taker-asset': 2,
-      'maker-asset-data': 14e8,
-      'taker-asset-data': 1e8,
-      'maximum-fill': 100,
+      'maker-asset-data': 14000,
+      'taker-asset-data': 1,
+      'maximum-fill': 100e8,
       'expiration-height': 100,
       salt: 1,
       risk: false,
@@ -373,17 +373,17 @@ Clarinet.test({
       maker: 2,
       'maker-asset': 2,
       'taker-asset': 1,
-      'maker-asset-data': 1e8,
-      'taker-asset-data': 13.3e8, // 5% down
-      'maximum-fill': 100,
-      'expiration-height': 100,
+      'maker-asset-data': 1,
+      'taker-asset-data': 13300, // 5% down
+      'maximum-fill': 100e8,
+      'expiration-height': 340282366920938463463374607431768211455n,
       salt: 2,
       risk: true,
-      stop: 13.65e8, // 2.5% down
+      stop: 13650e8, // 2.5% down
       timestamp: 1,
       type: 0,
       'linked-hash':
-        '0xd55293082781e8706ae5f43673a5332e063dc8d3846e9c54a78dfa6dadc69577',
+        '0x1112468ee7678b4d1fc5597ebbdfb7cf0967979a93b56cdf5a6b5c5d1a7c1626',
     });
 
     const right_order = perpOrderToTupleCV({
@@ -392,9 +392,9 @@ Clarinet.test({
       maker: 3,
       'maker-asset': 2,
       'taker-asset': 1,
-      'maker-asset-data': 1e8,
-      'taker-asset-data': 14e8,
-      'maximum-fill': 50,
+      'maker-asset-data': 1,
+      'taker-asset-data': 14000,
+      'maximum-fill': 50e8,
       'expiration-height': 100,
       salt: 2,
       risk: false,
@@ -410,33 +410,33 @@ Clarinet.test({
       maker: 3,
       'maker-asset': 1,
       'taker-asset': 2,
-      'maker-asset-data': 14.7e8,
-      'taker-asset-data': 1e8,
-      'maximum-fill': 50,
-      'expiration-height': 100,
+      'maker-asset-data': 14700,
+      'taker-asset-data': 1,
+      'maximum-fill': 50e8,
+      'expiration-height': 340282366920938463463374607431768211455n,
       salt: 3,
       risk: true,
-      stop: 14.35e8,
+      stop: 14350e8,
       timestamp: 2,
       type: 0,
       'linked-hash':
-        '0x5d237553fb165c63f11782ee66d2779d6dd1a4b89f72aca7fd402c77d35954b6',
+        '0xbcbdc1950f9255c64ea18e55d186ca60203eaf11e76be486ee96e6a97c48e893',
     });
     // console.log(left_order, right_order);
 
-    // yarn generate-perpetual-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 2, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": 14e8, \"taker-asset-data\": 1e8, \"maximum-fill\": 100, \"expiration-height\": 100, \"salt\": 1, \"risk\": false, \"stop\": 0, \"timestamp\": 1, \"type\": 0, \"linked-hash\": \"0x\" }"
+    // yarn generate-perpetual-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 2, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": 14000, \"taker-asset-data\": 1, \"maximum-fill\": 100e8, \"expiration-height\": 100, \"salt\": 1, \"risk\": false, \"stop\": 0, \"timestamp\": 1, \"type\": 0, \"linked-hash\": \"0x\" }"
     const left_order_hash =
-      '0xd55293082781e8706ae5f43673a5332e063dc8d3846e9c54a78dfa6dadc69577';
-    // yarn generate-perpetual-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 3, \"maker-asset\": 2, \"taker-asset\": 1, \"maker-asset-data\": 1e8, \"taker-asset-data\": 14e8, \"maximum-fill\": 50, \"expiration-height\": 100, \"salt\": 2, \"risk\": false, \"stop\": 0, \"timestamp\": 2, \"type\": 0, \"linked-hash\": \"0x\" }"
+      '0x1112468ee7678b4d1fc5597ebbdfb7cf0967979a93b56cdf5a6b5c5d1a7c1626';
+    // yarn generate-perpetual-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 3, \"maker-asset\": 2, \"taker-asset\": 1, \"maker-asset-data\": 1, \"taker-asset-data\": 14000, \"maximum-fill\": 50e8, \"expiration-height\": 100, \"salt\": 2, \"risk\": false, \"stop\": 0, \"timestamp\": 2, \"type\": 0, \"linked-hash\": \"0x\" }"
     const right_order_hash =
-      '0x5d237553fb165c63f11782ee66d2779d6dd1a4b89f72aca7fd402c77d35954b6';
+      '0xbcbdc1950f9255c64ea18e55d186ca60203eaf11e76be486ee96e6a97c48e893';
 
-    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0xd55293082781e8706ae5f43673a5332e063dc8d3846e9c54a78dfa6dadc69577
+    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0x1112468ee7678b4d1fc5597ebbdfb7cf0967979a93b56cdf5a6b5c5d1a7c1626
     const left_signature =
-      '0x2a4b0ce955bde746a43c5554722d35f7c78464bcf9c0aca8e9601724649c9478737eeb910dbe636bcce96c93bc2e76e46dfe7a4e09f1e043a624141682ddb08801';
-    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0x5d237553fb165c63f11782ee66d2779d6dd1a4b89f72aca7fd402c77d35954b6
+      '0xef9cf4048b84a0bc8851c1353298f47b5f10f3f75d274a4002425819689c2f097e93d6e3a314faa9b4853123b48b73b79dc03e9865cb377fd4540f551cff2c0e01';
+    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0xbcbdc1950f9255c64ea18e55d186ca60203eaf11e76be486ee96e6a97c48e893
     const right_signature =
-      '0xea7104b0fdc8eb2301da1615aed16d01fe806516c3658d6e99698fd7b711085b1c3b01992dd0fecb1d3271f7984c020230e4017ff22f02aeed5357d8ef047d3600';
+      '0xf9e372787963d617bc141ede03835c28ca592c42b3cac4063fd59f7b5e675a5370ab3ad5350bc5c20cb4668afcb6d479e930eecceafef689326dbed639010b1501';
 
     let response = chain.callReadOnlyFn(
       contractNames.perpetual,

@@ -165,6 +165,18 @@ export function prepareChainBasicTest(
       deployer.address,
     ),
     Tx.contractCall(
+      contractNames.perpetual,
+      'set-authorised-sender',
+      [types.bool(true), '.stxdx-sender-proxy'],
+      deployer.address,
+    ),
+    Tx.contractCall(
+      contractNames.perpetual,
+      'set-authorised-sender',
+      [types.bool(true), types.principal(wallet_1.address)],
+      deployer.address,
+    ),
+    Tx.contractCall(
       contractNames.sender_proxy,
       'set-authorised-sender',
       [types.bool(true), types.principal(wallet_1.address)],
@@ -180,6 +192,18 @@ export function prepareChainBasicTest(
       contractNames.registry,
       'approve-exchange',
       ['.stxdx-exchange-zero', types.bool(true)],
+      deployer.address,
+    ),
+    Tx.contractCall(
+      contractNames.wallet,
+      'approve-exchange',
+      ['.stxdx-exchange-perp', types.bool(true)],
+      deployer.address,
+    ),
+    Tx.contractCall(
+      contractNames.registry,
+      'approve-exchange',
+      ['.stxdx-exchange-perp', types.bool(true)],
       deployer.address,
     ),
     Tx.contractCall(
@@ -277,6 +301,40 @@ export function prepareChainBasicTest(
         buff(
           '0x42544300000000000000000000000000000000000000000000000000000000',
         ),
+      ],
+      deployer.address,
+    ),
+    Tx.contractCall(
+      contractNames.perpetual,
+      'set-trusted-oracle',
+      [
+        buff(
+          '0x03009dd87eb41d96ce8ad94aa22ea8b0ba4ac20c45e42f71726d6b180f93c3f298',
+        ),
+        types.bool(true),
+      ],
+      deployer.address,
+    ),
+    Tx.contractCall(
+      contractNames.perpetual,
+      'set-oracle-symbol',
+      [
+        types.uint(2),
+        buff(
+          '0x42544300000000000000000000000000000000000000000000000000000000',
+        ),
+      ],
+      deployer.address,
+    ),
+    Tx.contractCall(
+      contractNames.perpetual,
+      'set-risk-params',
+      [
+        types.uint(2),
+        types.tuple({
+          'max-leverage': types.uint(100),
+          'haircut-in-fixed': types.uint(0e8),
+        }),
       ],
       deployer.address,
     ),
