@@ -863,5 +863,143 @@ Clarinet.test({
         type: types.ascii('internal_transfer'),
       },
     );
+
+    const left_order_2 = perpOrderToTupleCV({
+      sender: 1,
+      'sender-fee': 0.001e8,
+      maker: 2,
+      'maker-asset': 2,
+      'taker-asset': 1,
+      'maker-asset-data': 1,
+      'taker-asset-data': 13650, // 5% down
+      'maximum-fill': 100e8,
+      'expiration-height': 100,
+      salt: 3,
+      risk: false,
+      stop: 0,
+      timestamp: 2,
+      type: 0,
+      'linked-hash':
+        '0x262f3a7c15a81ce06e8537ef37727ee0fec341240f11d36a0dc4d530884ac63e',
+    });
+
+    const right_order_2 = perpOrderToTupleCV({
+      sender: 1,
+      'sender-fee': 0.001e8,
+      maker: 3,
+      'maker-asset': 1,
+      'taker-asset': 2,
+      'maker-asset-data': 13650,
+      'taker-asset-data': 1,
+      'maximum-fill': 100e8,
+      'expiration-height': 100,
+      salt: 3,
+      risk: false,
+      stop: 0,
+      timestamp: 3,
+      type: 0,
+      'linked-hash': '0x',
+    });
+
+    const right_linked_2 = perpOrderToTupleCV({
+      sender: 1,
+      'sender-fee': 0.001e8,
+      maker: 3,
+      'maker-asset': 2,
+      'taker-asset': 1,
+      'maker-asset-data': 1,
+      'taker-asset-data': 12967,
+      'maximum-fill': 100e8,
+      'expiration-height': 340282366920938463463374607431768211455n,
+      salt: 4,
+      risk: true,
+      stop: 13300e8,
+      timestamp: 3,
+      type: 0,
+      'linked-hash':
+        '0x2f82e07a614eb092b0ce6d75768f1c94c5ac2b7651c1cd08fe595861d4985fab',
+    });
+
+    // yarn generate-perpetual-hash "{ \"sender\": 1, \"sender-fee\": 0.001e8, \"maker\": 2, \"maker-asset\": 2, \"taker-asset\": 1, \"maker-asset-data\": 1, \"taker-asset-data\": 13650, \"maximum-fill\": 100e8, \"expiration-height\": 100, \"salt\": 3, \"risk\": false, \"stop\": 0, \"timestamp\": 2, \"type\": 0, \"linked-hash\": \"0x262f3a7c15a81ce06e8537ef37727ee0fec341240f11d36a0dc4d530884ac63e\" }"
+    const left_order_hash_2 =
+      '0xf980c3160f479ad4be76c9f0c9dd8d61e41b8eb62f88813dd9ae85055757b526';
+
+    // yarn generate-perpetual-hash "{ \"sender\": 1, \"sender-fee\": 0.001e8, \"maker\": 3, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": 13650, \"taker-asset-data\": 1, \"maximum-fill\": 100e8, \"expiration-height\": 100, \"salt\": 3, \"risk\": false, \"stop\": 0, \"timestamp\": 3, \"type\": 0, \"linked-hash\": \"0x\" }"
+    const right_order_hash_2 =
+      '0x2f82e07a614eb092b0ce6d75768f1c94c5ac2b7651c1cd08fe595861d4985fab';
+
+    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0xf980c3160f479ad4be76c9f0c9dd8d61e41b8eb62f88813dd9ae85055757b526
+    const left_signature_2 =
+      '0xea6b419468c594cd180397964a43feead553ba9646c3e7bc4bb9763c074e07c612a6df6ade0376af535320ee3e24c51c3240dbe25108b35e81ac70a0a54a2bc600';
+
+    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0x2f82e07a614eb092b0ce6d75768f1c94c5ac2b7651c1cd08fe595861d4985fab
+    const right_signature_2 =
+      '0x16096bdcc62be58d669d1fcf3b30a3eff496751438e675886bf332fc9eaeaa9266048d59576eb4ea6be1b6d712217c8e0bfd22a50a74e55dce0c4edc3a938f9801';
+
+    const block_2 = chain.mineBlock([
+      Tx.contractCall(
+        contractNames.sender_proxy,
+        'match-perp-orders',
+        [
+          types.tuple({ parent: left_order_2, linked: types.none() }),
+          types.tuple({
+            parent: right_order_2,
+            linked: types.some(right_linked_2),
+          }),
+          left_signature_2,
+          right_signature_2,
+          types.none(),
+          types.none(),
+          types.none(),
+        ],
+        sender.address,
+      ),
+    ]);
+    block_2.receipts[0].result
+      .expectOk()
+      .expectTuple()
+      ['fillable'].expectUint(50e8);
+
+    console.log(block_2.receipts[0].events);
+    // assertEquals(
+    //   block.receipts[0].events[0].contract_event.value.expectTuple(),
+    //   {
+    //     amount: types.uint(14000 * 50e8 * 0.05),
+    //     'asset-id': types.uint(1),
+    //     'recipient-id': types.uint(4),
+    //     'sender-id': types.uint(2),
+    //     type: types.ascii('internal_transfer'),
+    //   },
+    // );
+    // assertEquals(
+    //   block.receipts[0].events[1].contract_event.value.expectTuple(),
+    //   {
+    //     amount: types.uint(14000 * 50e8 * 0.001),
+    //     'asset-id': types.uint(1),
+    //     'recipient-id': types.uint(1),
+    //     'sender-id': types.uint(2),
+    //     type: types.ascii('internal_transfer'),
+    //   },
+    // );
+    // assertEquals(
+    //   block.receipts[0].events[2].contract_event.value.expectTuple(),
+    //   {
+    //     amount: types.uint(14000 * 50e8 * 0.05),
+    //     'asset-id': types.uint(1),
+    //     'recipient-id': types.uint(4),
+    //     'sender-id': types.uint(3),
+    //     type: types.ascii('internal_transfer'),
+    //   },
+    // );
+    // assertEquals(
+    //   block.receipts[0].events[3].contract_event.value.expectTuple(),
+    //   {
+    //     amount: types.uint(14000 * 50e8 * 0.001),
+    //     'asset-id': types.uint(1),
+    //     'recipient-id': types.uint(1),
+    //     'sender-id': types.uint(3),
+    //     type: types.ascii('internal_transfer'),
+    //   },
+    // );
   },
 });

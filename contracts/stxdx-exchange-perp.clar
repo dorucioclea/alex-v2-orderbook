@@ -590,14 +590,11 @@
 )
 
 (define-private (settle-from-exchange (maker-id uint) (sender-id uint) (asset-id uint) (amount uint) (fee-amount uint))
-	(let 
-		(
-			(exchange-uid (as-contract (try! (contract-call? .stxdx-registry get-user-id-or-fail tx-sender))))
-		)
-		(as-contract (try! (contract-call? .stxdx-wallet-zero transfer (- amount fee-amount) exchange-uid maker-id asset-id)))
+	(begin
+		(as-contract (try! (contract-call? .stxdx-wallet-zero transfer amount (as-contract (try! (contract-call? .stxdx-registry get-user-id-or-fail tx-sender))) maker-id asset-id)))
 		(and
 			(> fee-amount u0)
-			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer fee-amount exchange-uid sender-id asset-id) err-sender-fee-payment-failed))
+			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer fee-amount maker-id sender-id asset-id) err-sender-fee-payment-failed))
 		)
 		(ok true)
 	)
