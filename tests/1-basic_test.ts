@@ -383,7 +383,7 @@ Clarinet.test({
       timestamp: 1,
       type: 0,
       'linked-hash':
-        '0x1112468ee7678b4d1fc5597ebbdfb7cf0967979a93b56cdf5a6b5c5d1a7c1626',
+        '0x262f3a7c15a81ce06e8537ef37727ee0fec341240f11d36a0dc4d530884ac63e',
     });
 
     const right_order = perpOrderToTupleCV({
@@ -420,7 +420,7 @@ Clarinet.test({
       timestamp: 2,
       type: 0,
       'linked-hash':
-        '0xbcbdc1950f9255c64ea18e55d186ca60203eaf11e76be486ee96e6a97c48e893',
+        '0x7dd31575a351d31538b0d9559a3f7f8411887058524397d82b07d3b870b9fcdf',
     });
     // console.log(left_order, right_order);
 
