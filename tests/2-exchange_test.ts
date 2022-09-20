@@ -821,6 +821,31 @@ Clarinet.test({
       .expectOk()
       .expectTuple()
       ['fillable'].expectUint(50e8);
-    // console.log(block.receipts[0].events);
+
+    const left_order_event =
+      block.receipts[0].events[0].contract_event.value.expectTuple();
+    left_order_event['amount'].expectUint(14000 * 50e8 * 0.05);
+    left_order_event['asset-id'].expectUint(1);
+    left_order_event['recipient-id'].expectUint(4);
+    left_order_event['sender-id'].expectUint(2);
+    const left_order_fee_event =
+      block.receipts[0].events[1].contract_event.value.expectTuple();
+    left_order_fee_event['amount'].expectUint(14000 * 50e8 * 0.001);
+    left_order_fee_event['asset-id'].expectUint(1);
+    left_order_fee_event['recipient-id'].expectUint(1);
+    left_order_fee_event['sender-id'].expectUint(2);
+
+    const right_order_event =
+      block.receipts[0].events[2].contract_event.value.expectTuple();
+    right_order_event['amount'].expectUint(14000 * 50e8 * 0.05);
+    right_order_event['asset-id'].expectUint(1);
+    right_order_event['recipient-id'].expectUint(4);
+    right_order_event['sender-id'].expectUint(3);
+    const right_order_fee_event =
+      block.receipts[0].events[3].contract_event.value.expectTuple();
+    right_order_fee_event['amount'].expectUint(14000 * 50e8 * 0.001);
+    right_order_fee_event['asset-id'].expectUint(1);
+    right_order_fee_event['recipient-id'].expectUint(1);
+    right_order_fee_event['sender-id'].expectUint(3);
   },
 });
