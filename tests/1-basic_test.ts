@@ -455,6 +455,7 @@ Clarinet.test({
     // console.log(response.result);
     let response_tuple = response.result.expectOk().expectTuple();
     assertEquals(response_tuple, {
+      'left-buy': types.bool(true),
       fillable: types.uint(50e8),
       'left-order-fill': types.uint(0),
       'left-order-hash': left_order_hash,
