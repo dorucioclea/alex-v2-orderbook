@@ -351,7 +351,7 @@ Clarinet.test({
 
     const left_order = perpOrderToTupleCV({
       sender: 1,
-      'sender-fee': 1e8,
+      'sender-fee': 0.001e8,
       maker: 2,
       'maker-asset': 1,
       'taker-asset': 2,
@@ -369,7 +369,7 @@ Clarinet.test({
 
     const left_linked = perpOrderToTupleCV({
       sender: 1,
-      'sender-fee': 1e8,
+      'sender-fee': 0.001e8,
       maker: 2,
       'maker-asset': 2,
       'taker-asset': 1,
@@ -388,7 +388,7 @@ Clarinet.test({
 
     const right_order = perpOrderToTupleCV({
       sender: 1,
-      'sender-fee': 1e8,
+      'sender-fee': 0.001e8,
       maker: 3,
       'maker-asset': 2,
       'taker-asset': 1,
@@ -406,7 +406,7 @@ Clarinet.test({
 
     const right_linked = perpOrderToTupleCV({
       sender: 1,
-      'sender-fee': 1e8,
+      'sender-fee': 0.001e8,
       maker: 3,
       'maker-asset': 1,
       'taker-asset': 2,
@@ -424,19 +424,19 @@ Clarinet.test({
     });
     // console.log(left_order, right_order);
 
-    // yarn generate-perpetual-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 2, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": 14000, \"taker-asset-data\": 1, \"maximum-fill\": 100e8, \"expiration-height\": 100, \"salt\": 1, \"risk\": false, \"stop\": 0, \"timestamp\": 1, \"type\": 0, \"linked-hash\": \"0x\" }"
+    // yarn generate-perpetual-hash "{ \"sender\": 1, \"sender-fee\": 0.001e8, \"maker\": 2, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": 14000, \"taker-asset-data\": 1, \"maximum-fill\": 100e8, \"expiration-height\": 100, \"salt\": 1, \"risk\": false, \"stop\": 0, \"timestamp\": 1, \"type\": 0, \"linked-hash\": \"0x\" }"
     const left_order_hash =
-      '0x1112468ee7678b4d1fc5597ebbdfb7cf0967979a93b56cdf5a6b5c5d1a7c1626';
-    // yarn generate-perpetual-hash "{ \"sender\": 1, \"sender-fee\": 1e8, \"maker\": 3, \"maker-asset\": 2, \"taker-asset\": 1, \"maker-asset-data\": 1, \"taker-asset-data\": 14000, \"maximum-fill\": 50e8, \"expiration-height\": 100, \"salt\": 2, \"risk\": false, \"stop\": 0, \"timestamp\": 2, \"type\": 0, \"linked-hash\": \"0x\" }"
+      '0x262f3a7c15a81ce06e8537ef37727ee0fec341240f11d36a0dc4d530884ac63e';
+    // yarn generate-perpetual-hash "{ \"sender\": 1, \"sender-fee\": 0.001e8, \"maker\": 3, \"maker-asset\": 2, \"taker-asset\": 1, \"maker-asset-data\": 1, \"taker-asset-data\": 14000, \"maximum-fill\": 50e8, \"expiration-height\": 100, \"salt\": 2, \"risk\": false, \"stop\": 0, \"timestamp\": 2, \"type\": 0, \"linked-hash\": \"0x\" }"
     const right_order_hash =
-      '0xbcbdc1950f9255c64ea18e55d186ca60203eaf11e76be486ee96e6a97c48e893';
+      '0x7dd31575a351d31538b0d9559a3f7f8411887058524397d82b07d3b870b9fcdf';
 
-    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0x1112468ee7678b4d1fc5597ebbdfb7cf0967979a93b56cdf5a6b5c5d1a7c1626
+    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0x262f3a7c15a81ce06e8537ef37727ee0fec341240f11d36a0dc4d530884ac63e
     const left_signature =
-      '0xef9cf4048b84a0bc8851c1353298f47b5f10f3f75d274a4002425819689c2f097e93d6e3a314faa9b4853123b48b73b79dc03e9865cb377fd4540f551cff2c0e01';
-    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0xbcbdc1950f9255c64ea18e55d186ca60203eaf11e76be486ee96e6a97c48e893
+      '0xc3d183f2efa646b916f954dede095758fc5ac7cc4c9f1447666df90eb0b8dbf305e7c0ec62fd905a7e66188fe7e5fb814bee94c024781943f37d2bf25505e53700';
+    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0x7dd31575a351d31538b0d9559a3f7f8411887058524397d82b07d3b870b9fcdf
     const right_signature =
-      '0xf9e372787963d617bc141ede03835c28ca592c42b3cac4063fd59f7b5e675a5370ab3ad5350bc5c20cb4668afcb6d479e930eecceafef689326dbed639010b1501';
+      '0x356799e2cdb405e1fbb9aefb460a055bbc5e7568afc880d21016a4c62a0a7241065565788bc2b694564f89a59a9991f797efc1315db52a344e23a791f0dcabf601';
 
     let response = chain.callReadOnlyFn(
       contractNames.perpetual,

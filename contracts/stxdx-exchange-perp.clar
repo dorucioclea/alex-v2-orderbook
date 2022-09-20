@@ -20,7 +20,6 @@
 ;; 5000-5999: exchange errors
 (define-constant err-asset-data-too-long (err u5003))
 (define-constant err-sender-fee-payment-failed (err u5007))
-(define-constant err-asset-contract-call-failed (err u5008))
 (define-constant err-stop-not-triggered (err u5009))
 (define-constant err-invalid-order-type (err u5010))
 (define-constant err-cancel-authorisation-failed (err u5011))
@@ -31,6 +30,7 @@
 (define-constant err-linked-order-not-found (err u5016))
 (define-constant err-invalid-stop-price (err u5017))
 (define-constant err-invalid-limit-price (err u5018))
+(define-constant err-invalid-risk-type (err u5019))
 
 ;; 6000-6999: oracle errors
 (define-constant err-untrusted-oracle (err u6000))
@@ -449,6 +449,7 @@
 				(asserts! (is-eq (get taker-asset left-parent) (get maker-asset left-linked)) err-taker-asset-mismatch)
 				(asserts! (is-eq (get maximum-fill left-parent) (get maximum-fill left-linked)) err-maximum-fill-mismatch)
 				(asserts! (is-eq (get expiration-height left-linked) u340282366920938463463374607431768211455) err-expiration-height-mismatch)
+				(asserts! (get risk left-linked) err-invalid-risk-type)
 				(asserts! (is-eq left-order-hash (get linked-hash left-linked)) err-order-hash-mismatch)			
 				(if is-buy 
 					(let 
@@ -509,8 +510,8 @@
 				(asserts! (is-eq (get taker-asset right-parent) (get maker-asset right-linked)) err-taker-asset-mismatch)		
 				(asserts! (is-eq (get maximum-fill right-parent) (get maximum-fill right-linked)) err-maximum-fill-mismatch)		
 				(asserts! (is-eq (get expiration-height right-linked) u340282366920938463463374607431768211455) err-expiration-height-mismatch)		
+				(asserts! (get risk right-linked) err-invalid-risk-type)
 				(asserts! (is-eq right-order-hash (get linked-hash right-linked)) err-order-hash-mismatch)
-
 				(if is-buy 
 					(let 
 						(
@@ -591,7 +592,7 @@
 		(
 			(exchange-uid (as-contract (try! (contract-call? .stxdx-registry get-user-id-or-fail tx-sender))))
 		)
-		(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer amount (get maker order) exchange-uid (get maker-asset order)) err-asset-contract-call-failed))
+		(as-contract (try! (contract-call? .stxdx-wallet-zero transfer amount (get maker order) exchange-uid (get maker-asset order))))
 		(and
 			(> fee-amount u0)
 			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer fee-amount (get maker order) (get sender order) (get maker-asset order)) err-sender-fee-payment-failed))
@@ -609,7 +610,7 @@
 		(
 			(exchange-uid (as-contract (try! (contract-call? .stxdx-registry get-user-id-or-fail tx-sender))))
 		)
-		(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer (- amount fee-amount) exchange-uid (get maker order) (get taker-asset order)) err-asset-contract-call-failed))
+		(as-contract (try! (contract-call? .stxdx-wallet-zero transfer (- amount fee-amount) exchange-uid (get maker order) (get taker-asset order))))
 		(and
 			(> fee-amount u0)
 			(as-contract (unwrap! (contract-call? .stxdx-wallet-zero transfer fee-amount exchange-uid (get sender order) (get taker-asset order)) err-sender-fee-payment-failed))

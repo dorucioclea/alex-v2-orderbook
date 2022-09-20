@@ -143,13 +143,13 @@ export function prepareChainBasicTest(
     Tx.contractCall(
       'token-xusd',
       'mint-fixed',
-      [types.uint(10000e8), types.principal(wallet_2.address)],
+      [types.uint(100000e8), types.principal(wallet_2.address)],
       deployer.address,
     ),
     Tx.contractCall(
       'token-xusd',
       'mint-fixed',
-      [types.uint(10000e8), types.principal(wallet_3.address)],
+      [types.uint(100000e8), types.principal(wallet_3.address)],
       deployer.address,
     ),
     Tx.contractCall(
@@ -237,10 +237,16 @@ export function prepareChainBasicTest(
       wallet_3.address,
     ),
     Tx.contractCall(
+      contractNames.registry,
+      'register-user-on-behalf',
+      [buff('0x'), types.principal(deployer.address + '.stxdx-exchange-perp')],
+      deployer.address,
+    ),
+    Tx.contractCall(
       contractNames.wallet,
       'transfer-in',
       [
-        types.uint(10000e8),
+        types.uint(100000e8),
         types.uint(2),
         types.uint(1),
         types.principal(deployer.address + '.token-wxusd'),
@@ -251,7 +257,7 @@ export function prepareChainBasicTest(
       contractNames.wallet,
       'transfer-in',
       [
-        types.uint(10000e8),
+        types.uint(100000e8),
         types.uint(3),
         types.uint(1),
         types.principal(deployer.address + '.token-wxusd'),
