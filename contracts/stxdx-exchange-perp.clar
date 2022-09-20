@@ -68,7 +68,8 @@
 		taker-asset: uint, 
 		maker-asset-data: uint, 
 		taker-asset-data: uint,
-		linked-hash: (buff 32)
+		linked-hash: (buff 32),
+		margin-per-fill: uint
 	}
 )
 
@@ -643,7 +644,10 @@
 				;; if linked order exists, then it is to add position
 				;; linked-hash of parent contains the hash of linked, for validation
 			 	(
-					(parent-order (get parent left-order))					
+					(parent-order (get parent left-order))
+					(asset-id (if left-buy (get maker-asset parent-order) (get taker-asset parent-order)))
+					(make-per-fill (if left-buy left-parent-make right-parent-make))
+					(margin-per-fill (if left-buy (- left-parent-make (get taker-asset-data left-linked)) (- (get maker-asset-data left-linked) right-parent-make)))
 				)
 				(map-set linked-orders (get linked-hash parent-order) true)
 				(map-set 
@@ -655,14 +659,12 @@
 						taker-asset: (get taker-asset parent-order),
 						maker-asset-data: left-parent-make, 
 						taker-asset-data: (get taker-asset-data parent-order),
-						linked-hash: (get linked-hash parent-order) 
+						linked-hash: (get linked-hash parent-order),
+						margin-per-fill: margin-per-fill 
 					}
 				)
 				;; when adding position, you pay initial margin to exchange
-				(if left-buy
-					(try! (settle-to-exchange (get maker parent-order) (get sender parent-order) (get maker-asset parent-order) (* fillable (- left-parent-make (get taker-asset-data left-linked))) (mul-down (get sender-fee parent-order) (* fillable left-parent-make))))
-					(try! (settle-to-exchange (get maker parent-order) (get sender parent-order) (get taker-asset parent-order) (* fillable (- (get maker-asset-data left-linked) right-parent-make)) (mul-down (get sender-fee parent-order) (* fillable right-parent-make))))
-				)
+				(try! (settle-to-exchange (get maker parent-order) (get sender parent-order) asset-id (* fillable margin-per-fill) (mul-down (get sender-fee parent-order) (* fillable make-per-fill))))				
 			)
 			(let 
 				;; if linked order does not exist, then it is to reduce position (or liquidation by the linked order)
@@ -670,13 +672,25 @@
 				(
 					(parent-order (get parent left-order))
 					(linked-order (unwrap! (map-get? positions (get linked-hash parent-order)) err-linked-order-not-found))
-				)				
-				(map-delete linked-orders (get linked-hash parent-order))
-				(map-delete positions (get linked-hash parent-order))
-				(if left-buy
-					(try! (settle-from-exchange (get maker parent-order) (get sender parent-order) (get maker-asset parent-order) (* fillable (- (get maker-asset-data linked-order) right-parent-make)) (mul-down (get sender-fee parent-order) (* fillable right-parent-make))))
-					(try! (settle-from-exchange (get maker parent-order) (get sender parent-order) (get taker-asset parent-order) (* fillable (- left-parent-make (get taker-asset-data linked-order))) (mul-down (get sender-fee parent-order) (* fillable left-parent-make))))
+					(linked-order-make (get maker-asset-data linked-order))
+					(linked-order-take (get taker-asset-data linked-order))
+					(asset-id (if left-buy (get maker-asset parent-order) (get taker-asset parent-order)))
+					(make-per-fill (if left-buy right-parent-make left-parent-make))
+					(margin-per-fill (get margin-per-fill linked-order))
+					(settle-per-fill 
+						(if left-buy 
+							(if (>= linked-order-make right-parent-make) 
+								(+ margin-per-fill (- linked-order-make right-parent-make))
+								(- margin-per-fill (- right-parent-make linked-order-make))
+							)
+							(if (>= left-parent-make linked-order-take)
+								(+ margin-per-fill (- left-parent-make linked-order-take))
+								(- margin-per-fill (- linked-order-take left-parent-make))
+							)
+						)
+					)
 				)
+				(try! (settle-from-exchange (get maker parent-order) (get sender parent-order) asset-id (* fillable settle-per-fill) (mul-down (get sender-fee parent-order) (* fillable make-per-fill))))
 			)
 		)	
 
@@ -686,9 +700,11 @@
 				;; if linked order exists, then it is to add position
 				;; linked-hash of parent contains the hash of linked, for validation
 			 	(
-					(parent-order (get parent right-order))					
+					(parent-order (get parent right-order))
+					(asset-id (if right-buy (get maker-asset parent-order) (get taker-asset parent-order)))
+					(make-per-fill (if right-buy right-parent-make left-parent-make))
+					(margin-per-fill (if right-buy (- right-parent-make (get taker-asset-data right-linked)) (- (get maker-asset-data right-linked) left-parent-make)))
 				)
-
 				(map-set linked-orders (get linked-hash parent-order) true)
 				(map-set 
 					positions
@@ -699,14 +715,12 @@
 						taker-asset: (get taker-asset parent-order),
 						maker-asset-data: right-parent-make, 
 						taker-asset-data: (get taker-asset-data parent-order),
-						linked-hash: (get linked-hash parent-order)
+						linked-hash: (get linked-hash parent-order),
+						margin-per-fill: margin-per-fill 
 					}
 				)
 				;; when adding position, you pay initial margin to exchange
-				(if right-buy
-					(try! (settle-to-exchange (get maker parent-order) (get sender parent-order) (get maker-asset parent-order) (* fillable (- right-parent-make (get taker-asset-data right-linked))) (mul-down (get sender-fee parent-order) (* fillable right-parent-make))))
-					(try! (settle-to-exchange (get maker parent-order) (get sender parent-order) (get taker-asset parent-order) (* fillable (- (get maker-asset-data right-linked) left-parent-make)) (mul-down (get sender-fee parent-order) (* fillable left-parent-make))))
-				)
+				(try! (settle-to-exchange (get maker parent-order) (get sender parent-order) asset-id (* fillable margin-per-fill) (mul-down (get sender-fee parent-order) (* fillable make-per-fill))))				
 			)
 			(let 
 				;; if linked order does not exist, then it is to reduce position (or liquidation by the linked order)
@@ -714,16 +728,27 @@
 				(
 					(parent-order (get parent right-order))
 					(linked-order (unwrap! (map-get? positions (get linked-hash parent-order)) err-linked-order-not-found))
+					(linked-order-make (get maker-asset-data linked-order))
+					(linked-order-take (get taker-asset-data linked-order))
+					(asset-id (if right-buy (get maker-asset parent-order) (get taker-asset parent-order)))
+					(make-per-fill (if right-buy left-parent-make right-parent-make))
+					(margin-per-fill (get margin-per-fill linked-order))
+					(settle-per-fill 
+						(if right-buy 
+							(if (>= linked-order-make left-parent-make) 
+								(+ margin-per-fill (- linked-order-make left-parent-make))
+								(- margin-per-fill (- left-parent-make linked-order-make))
+							)
+							(if (>= right-parent-make linked-order-take)
+								(+ margin-per-fill (- right-parent-make linked-order-take))
+								(- margin-per-fill (- linked-order-take right-parent-make))
+							)
+						)
+					)
 				)
-								
-				(map-delete linked-orders (get linked-hash parent-order))
-				(map-delete positions (get linked-hash parent-order))
-				(if right-buy
-					(try! (settle-from-exchange (get maker parent-order) (get sender parent-order) (get maker-asset parent-order) (* fillable (- (get maker-asset-data linked-order) left-parent-make)) (mul-down (get sender-fee parent-order) (* fillable left-parent-make))))
-					(try! (settle-from-exchange (get maker parent-order) (get sender parent-order) (get taker-asset parent-order) (* fillable (- right-parent-make (get taker-asset-data linked-order))) (mul-down (get sender-fee parent-order) (* fillable right-parent-make))))
-				)
+				(try! (settle-from-exchange (get maker parent-order) (get sender parent-order) asset-id (* fillable settle-per-fill) (mul-down (get sender-fee parent-order) (* fillable make-per-fill))))
 			)
-		)			
+		)		
 
 		(try! (contract-call? .stxdx-registry set-two-order-fills (get left-order-hash validation-data) (+ (get left-order-fill validation-data) fillable) (get right-order-hash validation-data) (+ (get right-order-fill validation-data) fillable)))				
 		(ok { fillable: fillable, left-order-make: left-parent-make, right-order-make: right-parent-make })
