@@ -729,6 +729,7 @@
 					(asset-id (if right-buy (get maker-asset parent-order) (get taker-asset parent-order)))
 					(make-per-fill (if right-buy left-parent-make right-parent-make))
 					(margin-per-fill (get margin-per-fill linked-order))
+					;; TODO: need to consider default situation
 					(settle-per-fill 
 						(if right-buy 
 							(if (>= linked-order-make left-parent-make) 
