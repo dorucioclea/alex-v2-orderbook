@@ -357,7 +357,9 @@
 			(order-fills (contract-call? .stxdx-registry get-two-order-fills left-order-hash right-order-hash))
 			(left-order-fill (get order-1 order-fills))
 			(right-order-fill (get order-2 order-fills))
-			(fillable (min (- (get maximum-fill left-parent) left-order-fill) (- (get maximum-fill right-parent) right-order-fill)))
+			(left-linked-filled (if (is-some (map-get? positions (get linked-hash left-parent))) (contract-call? .stxdx-registry get-order-fill (get linked-hash left-parent)) u340282366920938463463374607431768211455))
+			(right-linked-filled (if (is-some (map-get? positions (get linked-hash right-parent))) (contract-call? .stxdx-registry get-order-fill (get linked-hash right-parent)) u340282366920938463463374607431768211455))
+			(fillable (min (- (min left-linked-filled (get maximum-fill left-parent)) left-order-fill) (- (min right-linked-filled (get maximum-fill right-parent)) right-order-fill)))		
 			(left-buy (is-some (map-get? oracle-symbols (get taker-asset left-parent))))
 			(right-buy (not left-buy))
 		)
@@ -484,8 +486,6 @@
 				;; the linked order can be filled only up to the fill of the initiating order, 
 				;; which may be smaller than maximum-fill of the initiating order, or that of the linked order				
 				(
-					(filled (contract-call? .stxdx-registry get-order-fill (get linked-hash left-parent)))
-					(fillable_ (min (- filled left-order-fill) (- (get maximum-fill right-parent) right-order-fill)))
 					(linked-order (unwrap! (map-get? positions (get linked-hash left-parent)) err-linked-order-not-found))
 				)
 				(asserts! (is-eq (get maker left-parent) (get maker linked-order)) err-maker-mismatch)
@@ -493,7 +493,6 @@
 				(asserts! (is-eq (get taker-asset left-parent) (get maker-asset linked-order)) err-taker-asset-mismatch)
 				;; numeraire must be the same
 				(asserts! (is-eq (get maker-asset-data left-parent) (get taker-asset-data linked-order)) err-asset-data-mismatch)
-				(match fill value (asserts! (>= fillable_ value) err-maximum-fill-reached) (asserts! (> fillable_ u0) err-maximum-fill-reached))					
 			)
 		)
 		(match (get linked right-order)
@@ -542,16 +541,13 @@
 				;; the linked order can be filled only up to the fill of the initiating order, 
 				;; which may be smaller than maximum-fill of the initiating order, or that of the linked order
 				(
-					(filled (contract-call? .stxdx-registry get-order-fill (get linked-hash right-parent)))
-					(fillable_ (min (- filled right-order-fill) (- (get maximum-fill left-parent) left-order-fill)))
 					(linked-order (unwrap! (map-get? positions (get linked-hash right-parent)) err-linked-order-not-found))
 				)
 				(asserts! (is-eq (get maker right-parent) (get maker linked-order)) err-maker-mismatch)
 				(asserts! (is-eq (get maker-asset right-parent) (get taker-asset linked-order)) err-maker-asset-mismatch)
 				(asserts! (is-eq (get taker-asset right-parent) (get maker-asset linked-order)) err-taker-asset-mismatch)
 				;; numeraire must be the same
-				(asserts! (is-eq (get maker-asset-data right-parent) (get taker-asset-data linked-order)) err-asset-data-mismatch)				
-				(match fill value (asserts! (>= fillable_ value) err-maximum-fill-reached) (asserts! (> fillable_ u0) err-maximum-fill-reached))					
+				(asserts! (is-eq (get maker-asset-data right-parent) (get taker-asset-data linked-order)) err-asset-data-mismatch)			
 			)
 		)		
 
@@ -675,17 +671,17 @@
 					(linked-order-make (get maker-asset-data linked-order))
 					(linked-order-take (get taker-asset-data linked-order))
 					(asset-id (if left-buy (get maker-asset parent-order) (get taker-asset parent-order)))
-					(make-per-fill (if left-buy right-parent-make left-parent-make))
+					(make-per-fill (if left-buy left-parent-make right-parent-make))
 					(margin-per-fill (get margin-per-fill linked-order))
 					(settle-per-fill 
 						(if left-buy 
-							(if (>= linked-order-make right-parent-make) 
-								(+ margin-per-fill (- linked-order-make right-parent-make))
-								(- margin-per-fill (- right-parent-make linked-order-make))
+							(if (>= linked-order-take left-parent-make) 
+								(+ margin-per-fill (- linked-order-take left-parent-make))
+								(- margin-per-fill (- left-parent-make linked-order-take))
 							)
-							(if (>= left-parent-make linked-order-take)
-								(+ margin-per-fill (- left-parent-make linked-order-take))
-								(- margin-per-fill (- linked-order-take left-parent-make))
+							(if (>= right-parent-make linked-order-make)
+								(+ margin-per-fill (- right-parent-make linked-order-make))
+								(- margin-per-fill (- linked-order-make right-parent-make))
 							)
 						)
 					)
