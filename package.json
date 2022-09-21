@@ -11,6 +11,7 @@
     "generate-order-hash": "ts-node ./scripts/generate-order-hash",
     "seed-to-private-key": "ts-node ./scripts/seed-to-private-key",
     "sign-order-hash": "ts-node ./scripts/sign-order-hash",
+    "generate-cancel-hash": "ts-node ./scripts/generate-cancel-hash",
     "test": "clarinet test tests/*",
     "prepare": "husky install"
   },
@@ -51,5 +52,10 @@
     "arrowParens": "avoid",
     "trailingComma": "all",
     "printWidth": 80
+  },
+  "dependencies": {
+    "micro-stacks": "^1.1.2",
+    "node-gyp": "^9.1.0",
+    "redstone-api": "^0.4.11"
   }
 }

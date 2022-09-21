@@ -4,6 +4,7 @@
 // DO NOT USE REAL SEED PHRASES OR PRIVATE KEYS.
 
 import {
+  bufferCV,
   contractPrincipalCV,
   falseCV,
   serializeCV,
@@ -11,12 +12,11 @@ import {
   trueCV,
   tupleCV,
   TupleCV,
-  uintCV,
 } from '@stacks/transactions';
 import { createHash } from 'crypto';
 
 if (process.argv.length !== 3) {
-  console.log(`Usage: ts-node generate-order-hash <Order JSON>`);
+  console.log(`Usage: ts-node generate-cancel-hash <Order JSON>`);
   process.exit(0);
 }
 
@@ -36,25 +36,13 @@ function toBuffer(input: string): Buffer {
 
 function orderToTupleCV(order: { [key: string]: any }) {
   const expected_struct = {
-    sender: uintCV,
-    'sender-fee': uintCV,
-    maker: uintCV,
-    'maker-asset': uintCV,
-    'taker-asset': uintCV,
-    'maker-asset-data': uintCV,
-    'taker-asset-data': uintCV,
-    'maximum-fill': uintCV,
-    'expiration-height': uintCV,
-    salt: uintCV,
-    risk: (input: boolean) => (input ? trueCV() : falseCV()),
-    stop: uintCV,
-    timestamp: uintCV,
-    type: uintCV,
+    hash: (input: any) => bufferCV(toBuffer(input)),
+    cancel: (input: any) => (input ? trueCV() : falseCV()),
   };
   const orderTuple: { [key: string]: any } = {};
   for (const [key, func] of Object.entries(expected_struct))
     if (key in order) orderTuple[key] = func(order[key]);
-    else throw new Error(`Order object missing '${key}' field`);
+    else throw new Error(`Order object missing ${key} field`);
 
   return tupleCV(orderTuple);
 }
