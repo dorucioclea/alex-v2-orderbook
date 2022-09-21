@@ -83,3 +83,78 @@
 	)
 )
 
+(define-public (match-perp-orders
+	(left-order
+		{
+			parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) },
+			linked: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) })
+		}			
+	)
+	(right-order
+		{
+			parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) },
+			linked: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) })
+		}
+	)
+	(left-signature (buff 65))
+	(right-signature (buff 65))
+	(left-oracle-data (optional { timestamp: uint, value: uint, signature: (buff 65) }))
+	(right-oracle-data (optional { timestamp: uint, value: uint, signature: (buff 65) }))		
+	(fill (optional uint)))
+	(begin
+		(try! (is-authorised-sender))
+		(as-contract (contract-call? .stxdx-exchange-perp match-orders left-order right-order left-signature right-signature left-oracle-data right-oracle-data fill))
+	)
+)
+
+(define-private (match-perp-orders-iter 
+	(matched-orders
+		{
+			left-order:
+			{
+				parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) },
+				linked: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) })
+			},
+			right-order:
+			{
+				parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) },
+				linked: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) })
+			},
+			left-signature: (buff 65),
+			right-signature: (buff 65),
+			left-oracle-data: (optional { timestamp: uint, value: uint, signature: (buff 65) }),
+			right-oracle-data: (optional { timestamp: uint, value: uint, signature: (buff 65) }), 
+			fill: (optional uint)
+		}
+	))
+	(as-contract (contract-call? .stxdx-exchange-perp match-orders (get left-order matched-orders) (get right-order matched-orders) (get left-signature matched-orders) (get right-signature matched-orders) (get left-oracle-data matched-orders) (get right-oracle-data matched-orders) (get fill matched-orders)))
+)
+
+(define-public (match-perp-orders-many 
+	(matched-orders-list
+		(list 200 
+			{
+				left-order:
+				{
+					parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) },
+					linked: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) })
+				},
+				right-order:
+				{
+					parent: { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) },
+					linked: (optional { sender: uint, sender-fee: uint, maker: uint, maker-asset: uint, taker-asset: uint, maker-asset-data: uint, taker-asset-data: uint, maximum-fill: uint, expiration-height: uint, salt: uint, risk: bool, stop: uint, timestamp: uint, type: uint, linked-hash: (buff 32) })
+				},
+				left-signature: (buff 65),
+				right-signature: (buff 65),
+				left-oracle-data: (optional { timestamp: uint, value: uint, signature: (buff 65) }),
+				right-oracle-data: (optional { timestamp: uint, value: uint, signature: (buff 65) }),				
+				fill: (optional uint)
+			}
+		)
+	))
+	(begin
+		(try! (is-authorised-sender))
+		(ok (map match-perp-orders-iter matched-orders-list))
+	)
+)
+

@@ -1,10 +1,12 @@
 import {
   Account,
+  assertEquals,
   Chain,
   Clarinet,
   contractNames,
   orderToTuple,
   orderToTupleCV,
+  perpOrderToTupleCV,
   prepareChainBasicTest,
   PricePackage,
   shiftPriceValue,
@@ -704,5 +706,415 @@ Clarinet.test({
       ),
     ]);
     block.receipts[0].result.expectErr().expectUint(5009);
+  },
+});
+
+Clarinet.test({
+  name: 'Exchange - Perp: can match two orders',
+  fn(chain: Chain, accounts: Map<string, Account>) {
+    const sender = accounts.get('wallet_1')!;
+
+    const results = prepareChainBasicTest(chain, accounts);
+    results.receipts.forEach((e: any) => {
+      e.result.expectOk();
+    });
+
+    const left_order = perpOrderToTupleCV({
+      sender: 1,
+      'sender-fee': 0.001e8,
+      maker: 2,
+      'maker-asset': 1,
+      'taker-asset': 2,
+      'maker-asset-data': 14000,
+      'taker-asset-data': 1,
+      'maximum-fill': 100e8,
+      'expiration-height': 100,
+      salt: 1,
+      risk: false,
+      stop: 0,
+      timestamp: 1,
+      type: 0,
+      'linked-hash': '0x',
+    });
+
+    const left_linked = perpOrderToTupleCV({
+      sender: 1,
+      'sender-fee': 0.001e8,
+      maker: 2,
+      'maker-asset': 2,
+      'taker-asset': 1,
+      'maker-asset-data': 1,
+      'taker-asset-data': 13300, // 5% down
+      'maximum-fill': 100e8,
+      'expiration-height': 340282366920938463463374607431768211455n,
+      salt: 2,
+      risk: true,
+      stop: 13650e8, // 2.5% down
+      timestamp: 1,
+      type: 0,
+      'linked-hash':
+        '0x262f3a7c15a81ce06e8537ef37727ee0fec341240f11d36a0dc4d530884ac63e',
+    });
+
+    const right_order = perpOrderToTupleCV({
+      sender: 1,
+      'sender-fee': 0.001e8,
+      maker: 3,
+      'maker-asset': 2,
+      'taker-asset': 1,
+      'maker-asset-data': 1,
+      'taker-asset-data': 14000,
+      'maximum-fill': 50e8,
+      'expiration-height': 100,
+      salt: 2,
+      risk: false,
+      stop: 0,
+      timestamp: 2,
+      type: 0,
+      'linked-hash': '0x',
+    });
+
+    const right_linked = perpOrderToTupleCV({
+      sender: 1,
+      'sender-fee': 0.001e8,
+      maker: 3,
+      'maker-asset': 1,
+      'taker-asset': 2,
+      'maker-asset-data': 14700,
+      'taker-asset-data': 1,
+      'maximum-fill': 50e8,
+      'expiration-height': 340282366920938463463374607431768211455n,
+      salt: 3,
+      risk: true,
+      stop: 14350e8,
+      timestamp: 2,
+      type: 0,
+      'linked-hash':
+        '0x7dd31575a351d31538b0d9559a3f7f8411887058524397d82b07d3b870b9fcdf',
+    });
+
+    const left_signature =
+      '0xc3d183f2efa646b916f954dede095758fc5ac7cc4c9f1447666df90eb0b8dbf305e7c0ec62fd905a7e66188fe7e5fb814bee94c024781943f37d2bf25505e53700';
+
+    const right_signature =
+      '0x356799e2cdb405e1fbb9aefb460a055bbc5e7568afc880d21016a4c62a0a7241065565788bc2b694564f89a59a9991f797efc1315db52a344e23a791f0dcabf601';
+
+    const block = chain.mineBlock([
+      Tx.contractCall(
+        contractNames.sender_proxy,
+        'match-perp-orders',
+        [
+          types.tuple({ parent: left_order, linked: types.some(left_linked) }),
+          types.tuple({
+            parent: right_order,
+            linked: types.some(right_linked),
+          }),
+          left_signature,
+          right_signature,
+          types.none(),
+          types.none(),
+          types.none(),
+        ],
+        sender.address,
+      ),
+    ]);
+    block.receipts[0].result
+      .expectOk()
+      .expectTuple()
+      ['fillable'].expectUint(50e8);
+
+    assertEquals(
+      block.receipts[0].events[0].contract_event.value.expectTuple(),
+      {
+        amount: types.uint((14000 - 13300) * 50e8),
+        'asset-id': types.uint(1),
+        'recipient-id': types.uint(4),
+        'sender-id': types.uint(2),
+        type: types.ascii('internal_transfer'),
+      },
+    );
+    assertEquals(
+      block.receipts[0].events[1].contract_event.value.expectTuple(),
+      {
+        amount: types.uint(14000 * 50e8 * 0.001),
+        'asset-id': types.uint(1),
+        'recipient-id': types.uint(1),
+        'sender-id': types.uint(2),
+        type: types.ascii('internal_transfer'),
+      },
+    );
+    assertEquals(
+      block.receipts[0].events[2].contract_event.value.expectTuple(),
+      {
+        amount: types.uint((14700 - 14000) * 50e8),
+        'asset-id': types.uint(1),
+        'recipient-id': types.uint(4),
+        'sender-id': types.uint(3),
+        type: types.ascii('internal_transfer'),
+      },
+    );
+    assertEquals(
+      block.receipts[0].events[3].contract_event.value.expectTuple(),
+      {
+        amount: types.uint(14000 * 50e8 * 0.001),
+        'asset-id': types.uint(1),
+        'recipient-id': types.uint(1),
+        'sender-id': types.uint(3),
+        type: types.ascii('internal_transfer'),
+      },
+    );
+  },
+});
+Clarinet.test({
+  name: 'Exchange - Perp: can match a partial close-out order',
+  fn(chain: Chain, accounts: Map<string, Account>) {
+    const sender = accounts.get('wallet_1')!;
+
+    const results = prepareChainBasicTest(chain, accounts);
+    results.receipts.forEach((e: any) => {
+      e.result.expectOk();
+    });
+
+    const left_order = perpOrderToTupleCV({
+      sender: 1,
+      'sender-fee': 0.001e8,
+      maker: 2,
+      'maker-asset': 1,
+      'taker-asset': 2,
+      'maker-asset-data': 14000,
+      'taker-asset-data': 1,
+      'maximum-fill': 100e8,
+      'expiration-height': 100,
+      salt: 1,
+      risk: false,
+      stop: 0,
+      timestamp: 1,
+      type: 0,
+      'linked-hash': '0x',
+    });
+
+    const left_linked = perpOrderToTupleCV({
+      sender: 1,
+      'sender-fee': 0.001e8,
+      maker: 2,
+      'maker-asset': 2,
+      'taker-asset': 1,
+      'maker-asset-data': 1,
+      'taker-asset-data': 13300, // 5% down
+      'maximum-fill': 100e8,
+      'expiration-height': 340282366920938463463374607431768211455n,
+      salt: 2,
+      risk: true,
+      stop: 13650e8, // 2.5% down
+      timestamp: 1,
+      type: 0,
+      'linked-hash':
+        '0x262f3a7c15a81ce06e8537ef37727ee0fec341240f11d36a0dc4d530884ac63e',
+    });
+
+    const right_order = perpOrderToTupleCV({
+      sender: 1,
+      'sender-fee': 0.001e8,
+      maker: 3,
+      'maker-asset': 2,
+      'taker-asset': 1,
+      'maker-asset-data': 1,
+      'taker-asset-data': 14000,
+      'maximum-fill': 50e8,
+      'expiration-height': 100,
+      salt: 2,
+      risk: false,
+      stop: 0,
+      timestamp: 2,
+      type: 0,
+      'linked-hash': '0x',
+    });
+
+    const right_linked = perpOrderToTupleCV({
+      sender: 1,
+      'sender-fee': 0.001e8,
+      maker: 3,
+      'maker-asset': 1,
+      'taker-asset': 2,
+      'maker-asset-data': 14700,
+      'taker-asset-data': 1,
+      'maximum-fill': 50e8,
+      'expiration-height': 340282366920938463463374607431768211455n,
+      salt: 3,
+      risk: true,
+      stop: 14350e8,
+      timestamp: 2,
+      type: 0,
+      'linked-hash':
+        '0x7dd31575a351d31538b0d9559a3f7f8411887058524397d82b07d3b870b9fcdf',
+    });
+
+    const left_signature =
+      '0xc3d183f2efa646b916f954dede095758fc5ac7cc4c9f1447666df90eb0b8dbf305e7c0ec62fd905a7e66188fe7e5fb814bee94c024781943f37d2bf25505e53700';
+
+    const right_signature =
+      '0x356799e2cdb405e1fbb9aefb460a055bbc5e7568afc880d21016a4c62a0a7241065565788bc2b694564f89a59a9991f797efc1315db52a344e23a791f0dcabf601';
+
+    const block = chain.mineBlock([
+      Tx.contractCall(
+        contractNames.sender_proxy,
+        'match-perp-orders',
+        [
+          types.tuple({ parent: left_order, linked: types.some(left_linked) }),
+          types.tuple({
+            parent: right_order,
+            linked: types.some(right_linked),
+          }),
+          left_signature,
+          right_signature,
+          types.none(),
+          types.none(),
+          types.none(),
+        ],
+        sender.address,
+      ),
+    ]);
+    block.receipts[0].result
+      .expectOk()
+      .expectTuple()
+      ['fillable'].expectUint(50e8);
+
+    const left_order_2 = perpOrderToTupleCV({
+      sender: 1,
+      'sender-fee': 0.001e8,
+      maker: 2,
+      'maker-asset': 2,
+      'taker-asset': 1,
+      'maker-asset-data': 1,
+      'taker-asset-data': 13650,
+      'maximum-fill': 20e8,
+      'expiration-height': 100,
+      salt: 3,
+      risk: false,
+      stop: 0,
+      timestamp: 2,
+      type: 0,
+      'linked-hash':
+        '0x262f3a7c15a81ce06e8537ef37727ee0fec341240f11d36a0dc4d530884ac63e',
+    });
+
+    const right_order_2 = perpOrderToTupleCV({
+      sender: 1,
+      'sender-fee': 0.001e8,
+      maker: 3,
+      'maker-asset': 1,
+      'taker-asset': 2,
+      'maker-asset-data': 13650,
+      'taker-asset-data': 1,
+      'maximum-fill': 100e8,
+      'expiration-height': 100,
+      salt: 3,
+      risk: false,
+      stop: 0,
+      timestamp: 3,
+      type: 0,
+      'linked-hash': '0x',
+    });
+
+    const right_linked_2 = perpOrderToTupleCV({
+      sender: 1,
+      'sender-fee': 0.001e8,
+      maker: 3,
+      'maker-asset': 2,
+      'taker-asset': 1,
+      'maker-asset-data': 1,
+      'taker-asset-data': 12967,
+      'maximum-fill': 100e8,
+      'expiration-height': 340282366920938463463374607431768211455n,
+      salt: 4,
+      risk: true,
+      stop: 13300e8,
+      timestamp: 3,
+      type: 0,
+      'linked-hash':
+        '0x2f82e07a614eb092b0ce6d75768f1c94c5ac2b7651c1cd08fe595861d4985fab',
+    });
+
+    // yarn generate-perpetual-hash "{ \"sender\": 1, \"sender-fee\": 0.001e8, \"maker\": 2, \"maker-asset\": 2, \"taker-asset\": 1, \"maker-asset-data\": 1, \"taker-asset-data\": 13650, \"maximum-fill\": 20e8, \"expiration-height\": 100, \"salt\": 3, \"risk\": false, \"stop\": 0, \"timestamp\": 2, \"type\": 0, \"linked-hash\": \"0x262f3a7c15a81ce06e8537ef37727ee0fec341240f11d36a0dc4d530884ac63e\" }"
+    const left_order_hash_2 =
+      '0xa13ee15d91766ccd73928e18ab4142afcb33ce94c56932ef7d5412d8c4049292';
+
+    // yarn generate-perpetual-hash "{ \"sender\": 1, \"sender-fee\": 0.001e8, \"maker\": 3, \"maker-asset\": 1, \"taker-asset\": 2, \"maker-asset-data\": 13650, \"taker-asset-data\": 1, \"maximum-fill\": 100e8, \"expiration-height\": 100, \"salt\": 3, \"risk\": false, \"stop\": 0, \"timestamp\": 3, \"type\": 0, \"linked-hash\": \"0x\" }"
+    const right_order_hash_2 =
+      '0x2f82e07a614eb092b0ce6d75768f1c94c5ac2b7651c1cd08fe595861d4985fab';
+
+    // yarn sign-order-hash 530d9f61984c888536871c6573073bdfc0058896dc1adfe9a6a10dfacadc209101 0xa13ee15d91766ccd73928e18ab4142afcb33ce94c56932ef7d5412d8c4049292
+    const left_signature_2 =
+      '0x83c9ef53f13a816a927841fe8d41fca9d94f3dfe1d08e3c0bd92947445aae7737a09e2b4a8f9f33bafbf28f44e9dfab4d99368c6e1ddf403e5563e7ac52a8d4301';
+
+    // yarn sign-order-hash d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901 0x2f82e07a614eb092b0ce6d75768f1c94c5ac2b7651c1cd08fe595861d4985fab
+    const right_signature_2 =
+      '0x16096bdcc62be58d669d1fcf3b30a3eff496751438e675886bf332fc9eaeaa9266048d59576eb4ea6be1b6d712217c8e0bfd22a50a74e55dce0c4edc3a938f9801';
+
+    const block_2 = chain.mineBlock([
+      Tx.contractCall(
+        contractNames.sender_proxy,
+        'match-perp-orders',
+        [
+          types.tuple({ parent: left_order_2, linked: types.none() }),
+          types.tuple({
+            parent: right_order_2,
+            linked: types.some(right_linked_2),
+          }),
+          left_signature_2,
+          right_signature_2,
+          types.none(),
+          types.none(),
+          types.none(),
+        ],
+        sender.address,
+      ),
+    ]);
+    block_2.receipts[0].result
+      .expectOk()
+      .expectTuple()
+      ['fillable'].expectUint(20e8);
+
+    // console.log(block_2.receipts[0].events);
+    assertEquals(
+      block_2.receipts[0].events[0].contract_event.value.expectTuple(),
+      {
+        amount: types.uint((14000 - 13300) * 20e8 - (14000 - 13650) * 20e8),
+        'asset-id': types.uint(1),
+        'recipient-id': types.uint(2),
+        'sender-id': types.uint(4),
+        type: types.ascii('internal_transfer'),
+      },
+    );
+    assertEquals(
+      block_2.receipts[0].events[1].contract_event.value.expectTuple(),
+      {
+        amount: types.uint(13650 * 20e8 * 0.001),
+        'asset-id': types.uint(1),
+        'recipient-id': types.uint(1),
+        'sender-id': types.uint(2),
+        type: types.ascii('internal_transfer'),
+      },
+    );
+    assertEquals(
+      block_2.receipts[0].events[2].contract_event.value.expectTuple(),
+      {
+        amount: types.uint((13650 - 12967) * 20e8),
+        'asset-id': types.uint(1),
+        'recipient-id': types.uint(4),
+        'sender-id': types.uint(3),
+        type: types.ascii('internal_transfer'),
+      },
+    );
+    assertEquals(
+      block_2.receipts[0].events[3].contract_event.value.expectTuple(),
+      {
+        amount: types.uint(13650 * 20e8 * 0.001),
+        'asset-id': types.uint(1),
+        'recipient-id': types.uint(1),
+        'sender-id': types.uint(3),
+        type: types.ascii('internal_transfer'),
+      },
+    );
   },
 });

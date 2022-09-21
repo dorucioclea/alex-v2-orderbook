@@ -9,6 +9,7 @@
   "scripts": {
     "install-dao": "cd alex-v1/clarity && ./scripts/clarinet_manager.sh install alex_dao",
     "generate-order-hash": "ts-node ./scripts/generate-order-hash",
+    "generate-perpetual-hash": "ts-node ./scripts/generate-perpetual-hash",
     "seed-to-private-key": "ts-node ./scripts/seed-to-private-key",
     "sign-order-hash": "ts-node ./scripts/sign-order-hash",
     "generate-cancel-hash": "ts-node ./scripts/generate-cancel-hash",

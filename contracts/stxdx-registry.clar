@@ -58,13 +58,24 @@
 	)
 )
 
+(define-public (register-user-on-behalf (maker-pubkey (buff 33)) (maker principal))
+	(begin
+		(try! (is-contract-owner))
+		(register-user-given-maker maker-pubkey maker)
+	)
+)
+
 (define-public (register-user (maker-pubkey (buff 33)))
+	(register-user-given-maker maker-pubkey tx-sender)
+)
+
+(define-private (register-user-given-maker (maker-pubkey (buff 33)) (maker principal))
 	(let
 		(
 			(reg-id (+ (var-get user-registry-nonce) u1))
 		)
-		(asserts! (map-insert user-id-registry tx-sender reg-id) err-user-already-registered)
-		(map-insert user-registry reg-id {maker: tx-sender, maker-pubkey: maker-pubkey})		
+		(asserts! (map-insert user-id-registry maker reg-id) err-user-already-registered)
+		(map-insert user-registry reg-id {maker: maker, maker-pubkey: maker-pubkey})		
 		(var-set user-registry-nonce reg-id)
 		(ok reg-id)
 	)
