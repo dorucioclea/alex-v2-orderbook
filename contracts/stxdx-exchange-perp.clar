@@ -31,6 +31,7 @@
 (define-constant err-invalid-stop-price (err u5017))
 (define-constant err-invalid-limit-price (err u5018))
 (define-constant err-invalid-risk-type (err u5019))
+(define-constant err-invalid-risk-param (err u5020))
 
 ;; 6000-6999: oracle errors
 (define-constant err-untrusted-oracle (err u6000))
@@ -56,6 +57,7 @@
 (define-public (set-risk-params (asset-id uint) (params { max-leverage: uint, haircut-in-fixed: uint }))
 	(begin 
 		(try! (is-contract-owner))
+		(asserts! (and (> (get haircut-in-fixed params) u0) (< (get haircut-in-fixed params) ONE_8)) err-invalid-risk-param)
 		(ok (map-set risk-params asset-id params))
 	)
 )
@@ -357,6 +359,8 @@
 			(order-fills (contract-call? .stxdx-registry get-two-order-fills left-order-hash right-order-hash))
 			(left-order-fill (get order-1 order-fills))
 			(right-order-fill (get order-2 order-fills))
+			;; the linked order can be filled only up to the fill of the initiating order, 
+			;; which may be smaller than maximum-fill of the initiating order, or that of the linked order			
 			(left-linked-filled (if (is-some (map-get? positions (get linked-hash left-parent))) (contract-call? .stxdx-registry get-order-fill (get linked-hash left-parent)) u340282366920938463463374607431768211455))
 			(right-linked-filled (if (is-some (map-get? positions (get linked-hash right-parent))) (contract-call? .stxdx-registry get-order-fill (get linked-hash right-parent)) u340282366920938463463374607431768211455))
 			(fillable (min (- (min left-linked-filled (get maximum-fill left-parent)) left-order-fill) (- (min right-linked-filled (get maximum-fill right-parent)) right-order-fill)))		
@@ -460,8 +464,7 @@
 							(max-leverage-in-fixed (* (get max-leverage risk-params_) ONE_8))
 							(leverage (div-down parent-limit-in-fixed (- parent-limit-in-fixed linked-limit-in-fixed)))							
 							(stop-floor (div-down (mul-down linked-limit-in-fixed (- max-leverage-in-fixed (get haircut-in-fixed risk-params_))) (- max-leverage-in-fixed ONE_8)))
-						) 
-						(asserts! (>= (get stop left-linked) linked-limit-in-fixed) err-invalid-stop-price)
+						)
 						(asserts! (>= (get stop left-linked) stop-floor) err-invalid-stop-price)
 						(asserts! (>= max-leverage-in-fixed leverage) err-invalid-limit-price)
 					)
@@ -473,8 +476,7 @@
 							(max-leverage-in-fixed (* (get max-leverage risk-params_) ONE_8))
 							(leverage (div-down parent-limit-in-fixed (- linked-limit-in-fixed parent-limit-in-fixed)))
 							(stop-cap (div-down (mul-down linked-limit-in-fixed (+ max-leverage-in-fixed (get haircut-in-fixed risk-params_))) (+ max-leverage-in-fixed ONE_8)))
-						) 
-						(asserts! (<= (get stop left-linked) linked-limit-in-fixed) err-invalid-stop-price)
+						)
 						(asserts! (<= (get stop left-linked) stop-cap) err-invalid-stop-price)
 						(asserts! (>= max-leverage-in-fixed leverage) err-invalid-limit-price)
 					)					
@@ -482,9 +484,7 @@
 			)
 			(let
 				;; if linked order does not exist, then it is to reduce position (or liquidation by the linked order)
-				;; linked-hash of parent contains the hash of the initiating order
-				;; the linked order can be filled only up to the fill of the initiating order, 
-				;; which may be smaller than maximum-fill of the initiating order, or that of the linked order				
+				;; linked-hash of parent contains the hash of the initiating order	
 				(
 					(linked-order (unwrap! (map-get? positions (get linked-hash left-parent)) err-linked-order-not-found))
 				)
@@ -538,8 +538,6 @@
 			(let
 				;; if linked order does not exist, then it is to reduce position (or liquidation by the linked order)
 				;; linked-hash of parent contains the hash of the initiating order
-				;; the linked order can be filled only up to the fill of the initiating order, 
-				;; which may be smaller than maximum-fill of the initiating order, or that of the linked order
 				(
 					(linked-order (unwrap! (map-get? positions (get linked-hash right-parent)) err-linked-order-not-found))
 				)
@@ -673,6 +671,7 @@
 					(asset-id (if left-buy (get maker-asset parent-order) (get taker-asset parent-order)))
 					(make-per-fill (if left-buy left-parent-make right-parent-make))
 					(margin-per-fill (get margin-per-fill linked-order))
+					;; TODO: need to consider default situation
 					(settle-per-fill 
 						(if left-buy 
 							(if (>= linked-order-take left-parent-make) 
