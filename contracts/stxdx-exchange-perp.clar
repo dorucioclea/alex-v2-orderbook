@@ -380,20 +380,14 @@
 		;; one side matches and the taker of the other side is smaller than maker.
 		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
 		(asserts! 
-			(or 
-				(and ;; both maker and taker are vanilla limit orders
+			(or 			
+				(and
 					(is-eq (get maker-asset-data left-parent) (get taker-asset-data right-parent))
-					(is-eq (get taker-asset-data left-parent) (get maker-asset-data right-parent))				
-				)				
-				(and ;; taker (right-parent) is a market-limit buyer (has to be either FOK or IOC)
-					(is-eq (get maker-asset-data left-parent) (get taker-asset-data right-parent))
-					(< (get taker-asset-data left-parent) (get maker-asset-data right-parent))
-					(or (is-eq (get type right-parent) type-order-fok) (is-eq (get type right-parent) type-order-ioc))
+					(<= (get taker-asset-data left-parent) (get maker-asset-data right-parent))
 			 	)
-				(and ;; taker (right-parent) is a market-limit seller (has to be either FOK or IOC)
+				(and
 					(is-eq (get taker-asset-data left-parent) (get maker-asset-data right-parent))
-					(> (get maker-asset-data left-parent) (get taker-asset-data right-parent))
-					(or (is-eq (get type right-parent) type-order-fok) (is-eq (get type right-parent) type-order-ioc))
+					(>= (get maker-asset-data left-parent) (get taker-asset-data right-parent))
 				)
 			)
 			err-asset-data-mismatch
@@ -408,12 +402,9 @@
 					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
 				)
 				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
-				(asserts! (< (get timestamp left-parent) (get timestamp oracle-data)) err-invalid-timestamp)				
+				(asserts! (<= (get timestamp left-parent) (get timestamp oracle-data)) err-invalid-timestamp)				
 				(if (get risk left-parent) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
-					(begin
-						(asserts! (if left-buy (>= (get value oracle-data) (get stop left-parent)) (<= (get value oracle-data) (get stop left-parent))) err-stop-not-triggered)
-						(asserts! (or (is-eq (get type left-parent) type-order-fok) (is-eq (get type left-parent) type-order-ioc)) err-invalid-order-type)
-					)
+					(asserts! (if left-buy (>= (get value oracle-data) (get stop left-parent)) (<= (get value oracle-data) (get stop left-parent))) err-stop-not-triggered)					
 					(asserts! (if left-buy (< (get value oracle-data) (get stop left-parent)) (> (get value oracle-data) (get stop left-parent))) err-stop-not-triggered)
 				)				
 			)
@@ -427,12 +418,9 @@
 					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
 				)
 				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
-				(asserts! (< (get timestamp right-parent) (get timestamp oracle-data)) err-invalid-timestamp)				
+				(asserts! (<= (get timestamp right-parent) (get timestamp oracle-data)) err-invalid-timestamp)				
 				(if (get risk right-parent) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
-					(begin
-						(asserts! (if right-buy (>= (get value oracle-data) (get stop right-parent)) (<= (get value oracle-data) (get stop right-parent))) err-stop-not-triggered)
-						(asserts! (or (is-eq (get type right-parent) type-order-fok) (is-eq (get type right-parent) type-order-ioc)) err-invalid-order-type)
-					)
+					(asserts! (if right-buy (>= (get value oracle-data) (get stop right-parent)) (<= (get value oracle-data) (get stop right-parent))) err-stop-not-triggered)					
 					(asserts! (if right-buy (< (get value oracle-data) (get stop right-parent)) (> (get value oracle-data) (get stop right-parent))) err-stop-not-triggered)
 				)				
 			)
