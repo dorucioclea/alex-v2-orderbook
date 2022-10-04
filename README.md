@@ -11,7 +11,7 @@ _More information to follow._
 Setup is not required, but a few helper scripts exist that require you to install packages.
 
 ```bash
-npm install
+yarn install
 ```
 
 ## Helper scripts
@@ -19,19 +19,19 @@ npm install
 **Generate an order hash from order JSON**
 
 ```bash
-npm run generate-order-hash "<order JSON>"
+yarn run generate-order-hash "<order JSON>"
 ```
 
 **Convert a seed to a private key for testing**
 
 ```bash
-npm run seed-to-private-key "seed phrase"
+yarn run seed-to-private-key "seed phrase"
 ```
 
 **Sign order hash using a private key**
 
 ```bash
-npm run sign-order-hash <private key> <order hash>
+yarn run sign-order-hash <private key> <order hash>
 ```
 
 ## Tests
