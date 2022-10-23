@@ -8,6 +8,7 @@
 (define-constant err-unknown-request-id (err u6002))
 (define-constant err-unauthorised-request (err u6003))
 (define-constant err-amount-exceeds-balance (err u6004))
+(define-constant err-invalid-grace-period (err u6005))
 
 (define-constant err-unknown-asset-id (err u3501))
 
@@ -23,7 +24,9 @@
 	uint
 )
 
+(define-constant max-grace-period u1008)
 (define-data-var request-grace-period uint u100)
+
 (define-data-var request-nonce uint u0)
 (define-map requests 
 	uint
@@ -41,6 +44,7 @@
 (define-public (set-request-grace-period (new-grace-period uint))
 	(begin
 		(try! (is-contract-owner))
+		(asserts! (>= max-grace-period new-grace-period) err-invalid-grace-period)
 		(ok (var-set request-grace-period new-grace-period))
 	)
 )
