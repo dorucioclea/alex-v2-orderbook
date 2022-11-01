@@ -372,48 +372,95 @@
 			err-asset-data-mismatch
 		)
 		;; stop limit order
-		(if (or (is-eq (get stop left-order) u0) (is-order-triggered left-order-hash))
-			(if (is-order-triggered left-order-hash)
-				(asserts! (> (get timestamp right-order) (get timestamp (get-triggered-orders-or-default left-order-hash))) err-invalid-timestamp) ;; left-order must be older than right-order
-				(asserts! (> (get timestamp right-order) (get timestamp left-order)) err-invalid-timestamp) ;; left-order must be older than right-order
-			)
-			(let
-				(
-					(oracle-data (unwrap! left-oracle-data err-no-oracle-data))
-					(is-buy (is-some (map-get? oracle-symbols (get taker-asset left-order))))
-					(symbol (try! (get-oracle-symbol-or-fail (if is-buy (get taker-asset left-order) (get maker-asset left-order)))))
-					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
+		(if (and (or (is-order-triggered left-order-hash) (is-none left-oracle-data)) (or (is-order-triggered right-order-hash) (is-none right-oracle-data)))
+			(asserts! 
+				(< 
+					(if (is-order-triggered left-order-hash)
+						(get timestamp (get-triggered-orders-or-default left-order-hash))
+						(get timestamp left-order)
+					)	
+					(if (is-order-triggered right-order-hash) 
+						(get timestamp (get-triggered-orders-or-default right-order-hash))
+						(get timestamp right-order)
+					)
+				) 
+				err-invalid-timestamp
+			) ;; left-order must be older than right-order
+			(if (and (or (is-order-triggered left-order-hash) (is-none left-oracle-data)) (is-some right-oracle-data))
+				(let
+					(
+						(oracle-data (unwrap! right-oracle-data err-no-oracle-data))
+						(is-buy (is-some (map-get? oracle-symbols (get taker-asset right-order))))
+						(symbol (try! (get-oracle-symbol-or-fail (if is-buy (get taker-asset right-order) (get maker-asset right-order)))))
+						(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
+					)
+					(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
+					(asserts! (<= (get timestamp right-order) (get timestamp oracle-data)) err-invalid-timestamp)				
+					(asserts! 
+						(< 
+							(if (is-order-triggered left-order-hash)
+								(get timestamp (get-triggered-orders-or-default left-order-hash))
+								(get timestamp left-order)
+							)
+							(get timestamp oracle-data)
+						)
+						err-invalid-timestamp
+					)
+					(if (get risk right-order) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
+						(asserts! (if is-buy (>= (get value oracle-data) (get stop right-order)) (<= (get value oracle-data) (get stop right-order))) err-stop-not-triggered)
+						(asserts! (if is-buy (< (get value oracle-data) (get stop right-order)) (> (get value oracle-data) (get stop right-order))) err-stop-not-triggered)
+					)				
 				)
-				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
-				(asserts! (<= (get timestamp left-order) (get timestamp oracle-data)) err-invalid-timestamp)				
-				(asserts! (< (get timestamp oracle-data) (get timestamp right-order)) err-invalid-timestamp) ;; left-order must be older than right-order	
-				(if (get risk left-order) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
-					(asserts! (if is-buy (>= (get value oracle-data) (get stop left-order)) (<= (get value oracle-data) (get stop left-order))) err-stop-not-triggered)
-					(asserts! (if is-buy (< (get value oracle-data) (get stop left-order)) (> (get value oracle-data) (get stop left-order))) err-stop-not-triggered)
-				)				
+				(if (and (is-some left-oracle-data) (or (is-order-triggered right-order-hash) (is-none right-oracle-data)))
+					(let
+						(
+							(oracle-data (unwrap! left-oracle-data err-no-oracle-data))
+							(is-buy (is-some (map-get? oracle-symbols (get taker-asset left-order))))
+							(symbol (try! (get-oracle-symbol-or-fail (if is-buy (get taker-asset left-order) (get maker-asset left-order)))))
+							(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
+						)
+						(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
+						(asserts! (<= (get timestamp left-order) (get timestamp oracle-data)) err-invalid-timestamp)				
+						(asserts! 
+							(< 
+								(get timestamp oracle-data) 
+								(if (is-order-triggered right-order-hash)
+									(get timestamp (get-triggered-orders-or-default right-order-hash))
+									(get timestamp right-order)
+							 	)
+							) 
+							err-invalid-timestamp
+						)
+						(if (get risk left-order) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
+							(asserts! (if is-buy (>= (get value oracle-data) (get stop left-order)) (<= (get value oracle-data) (get stop left-order))) err-stop-not-triggered)
+							(asserts! (if is-buy (< (get value oracle-data) (get stop left-order)) (> (get value oracle-data) (get stop left-order))) err-stop-not-triggered)
+						)				
+					)
+					(let 
+						(							
+							(left-data (unwrap! left-oracle-data err-no-oracle-data))
+							(left-buy (is-some (map-get? oracle-symbols (get taker-asset left-order))))							
+							(symbol (try! (get-oracle-symbol-or-fail (if left-buy (get taker-asset left-order) (get maker-asset left-order)))))
+							(left-signer (try! (contract-call? .redstone-verify recover-signer (get timestamp left-data) (list {value: (get value left-data), symbol: symbol}) (get signature left-data))))							
+							(right-data (unwrap! right-oracle-data err-no-oracle-data))							
+							(right-buy (not left-buy))
+							(right-signer (try! (contract-call? .redstone-verify recover-signer (get timestamp right-data) (list {value: (get value right-data), symbol: symbol}) (get signature right-data))))							
+						)
+						(asserts! (and (is-trusted-oracle left-signer) (is-trusted-oracle right-signer)) err-untrusted-oracle)
+						(asserts! (and (<= (get timestamp left-order) (get timestamp left-data)) (<= (get timestamp right-order) (get timestamp right-data))) err-invalid-timestamp)				
+						(asserts! (< (get timestamp left-data) (get timestamp right-data)) err-invalid-timestamp)
+						(if (get risk left-order) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
+							(asserts! (if left-buy (>= (get value left-data) (get stop left-order)) (<= (get value left-data) (get stop left-order))) err-stop-not-triggered)
+							(asserts! (if left-buy (< (get value left-data) (get stop left-order)) (> (get value left-data) (get stop left-order))) err-stop-not-triggered)
+						)	
+						(if (get risk right-order) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
+							(asserts! (if right-buy (>= (get value right-data) (get stop right-order)) (<= (get value right-data) (get stop right-order))) err-stop-not-triggered)
+							(asserts! (if right-buy (< (get value right-data) (get stop right-order)) (> (get value right-data) (get stop right-order))) err-stop-not-triggered)
+						)											
+					)
+				)
 			)
 		)	
-		(if (or (is-eq (get stop right-order) u0) (is-order-triggered right-order-hash))
-			(if (is-order-triggered right-order-hash)
-				(asserts! (< (get timestamp left-order) (get timestamp (get-triggered-orders-or-default left-order-hash))) err-invalid-timestamp) ;; left-order must be older than right-order
-				(asserts! (< (get timestamp left-order) (get timestamp right-order)) err-invalid-timestamp) ;; left-order must be older than right-order
-			)
-			(let
-				(
-					(oracle-data (unwrap! right-oracle-data err-no-oracle-data))
-					(is-buy (is-some (map-get? oracle-symbols (get taker-asset right-order))))
-					(symbol (try! (get-oracle-symbol-or-fail (if is-buy (get taker-asset right-order) (get maker-asset right-order)))))
-					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
-				)
-				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
-				(asserts! (<= (get timestamp right-order) (get timestamp oracle-data)) err-invalid-timestamp)				
-				(asserts! (< (get timestamp left-order) (get timestamp oracle-data)) err-invalid-timestamp) ;; left-parent must be older than right-parent
-				(if (get risk right-order) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
-					(asserts! (if is-buy (>= (get value oracle-data) (get stop right-order)) (<= (get value oracle-data) (get stop right-order))) err-stop-not-triggered)
-					(asserts! (if is-buy (< (get value oracle-data) (get stop right-order)) (> (get value oracle-data) (get stop right-order))) err-stop-not-triggered)
-				)				
-			)
-		)		
 	
 		(asserts! (validate-authorisation left-order-fill (get maker left-user) (get maker-pubkey left-user) left-order-hash left-signature) err-left-authorisation-failed)
 		(asserts! (validate-authorisation right-order-fill (get maker right-user) (get maker-pubkey right-user) right-order-hash right-signature) err-right-authorisation-failed)
@@ -540,19 +587,25 @@
 			(left-order-make (get left-order-make validation-data))
 			(right-order-make (get right-order-make validation-data))
 		)
-		(map-set triggered-orders 
-			(get left-order-hash validation-data)
-			{
-				triggered: true,
-				timestamp: (match left-oracle-data value (get timestamp value) (get timestamp left-order))
-			}
+		(and 
+			(not (is-order-triggered (get left-order-hash validation-data)))
+			(map-set triggered-orders 
+				(get left-order-hash validation-data)
+				{
+					triggered: true,
+					timestamp: (match left-oracle-data value (get timestamp value) (get timestamp left-order))
+				}
+			)
 		)
-		(map-set triggered-orders 
-			(get right-order-hash validation-data)
-			{
-				triggered: true,
-				timestamp: (match right-oracle-data value (get timestamp value) (get timestamp right-order))
-			}
+		(and
+			(not (is-order-triggered (get right-order-hash validation-data)))
+			(map-set triggered-orders 
+				(get right-order-hash validation-data)
+				{
+					triggered: true,
+					timestamp: (match right-oracle-data value (get timestamp value) (get timestamp right-order))
+				}
+			)
 		)	
 		(try! (settle-order left-order (* fillable left-order-make) (get maker right-order)))
 		(try! (settle-order right-order (* fillable right-order-make) (get maker left-order)))
