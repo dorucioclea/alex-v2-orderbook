@@ -42,6 +42,7 @@
 (define-constant type-order-ioc u2)
 
 (define-constant ONE_8 u100000000)
+(define-constant MAX_UINT u340282366920938463463374607431768211455)
 
 (define-constant structured-data-prefix 0x534950303138)
 
@@ -79,14 +80,22 @@
 
 (define-map trusted-oracles (buff 33) bool)
 (define-map oracle-symbols uint (buff 32))
-(define-map triggered-orders (buff 32) bool)
+(define-map triggered-orders (buff 32) { triggered: bool, timestamp: uint })
 
 (define-read-only (is-trusted-oracle (pubkey (buff 33)))
 	(default-to false (map-get? trusted-oracles pubkey))
 )
 
 (define-read-only (is-order-triggered (order-hash (buff 32)))
-	(default-to false (map-get? triggered-orders order-hash))
+	(match (map-get? triggered-orders order-hash)
+		value
+		(get triggered value)
+		false
+	)
+)
+
+(define-read-only (get-triggered-orders-or-default (order-hash (buff 32)))
+	(default-to { triggered: false, timestamp: MAX_UINT } (map-get? triggered-orders order-hash))
 )
 
 (define-constant serialized-key-cancel (serialize-tuple-key "cancel"))
@@ -379,8 +388,7 @@
 		;; assets to be exchanged match
 		(asserts! (is-eq (get maker-asset left-parent) (get taker-asset right-parent)) err-maker-asset-mismatch)
 		(asserts! (is-eq (get taker-asset left-parent) (get maker-asset right-parent)) err-taker-asset-mismatch)
-		;; left-parent must be older than right-parent
-		(asserts! (< (get timestamp left-parent) (get timestamp right-parent)) err-invalid-timestamp)
+
 		;; one side matches and the taker of the other side is smaller than maker.
 		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
 		(asserts! 
@@ -397,36 +405,89 @@
 			err-asset-data-mismatch
 		)
 		;; stop limit order
-		(if (or (is-eq (get stop left-parent) u0) (is-order-triggered left-order-hash))
-			true
-			(let
-				(
-					(oracle-data (unwrap! left-oracle-data err-no-oracle-data))					
-					(symbol (try! (get-oracle-symbol-or-fail (if left-buy (get taker-asset left-parent) (get maker-asset left-parent)))))
-					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
+		(if (and (or (is-order-triggered left-order-hash) (is-none left-oracle-data)) (or (is-order-triggered right-order-hash) (is-none right-oracle-data)))
+			(asserts! 
+				(<= 
+					(if (is-order-triggered left-order-hash)
+						(get timestamp (get-triggered-orders-or-default left-order-hash))
+						(get timestamp left-parent)
+					)	
+					(if (is-order-triggered right-order-hash) 
+						(get timestamp (get-triggered-orders-or-default right-order-hash))
+						(get timestamp right-parent)
+					)
+				) 
+				err-invalid-timestamp
+			) ;; left-order must be older than right-order
+			(if (and (or (is-order-triggered left-order-hash) (is-none left-oracle-data)) (is-some right-oracle-data))
+				(let
+					(
+						(oracle-data (unwrap! right-oracle-data err-no-oracle-data))
+						(symbol (try! (get-oracle-symbol-or-fail (if right-buy (get taker-asset right-parent) (get maker-asset right-parent)))))
+						(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
+					)
+					(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
+					(asserts! (<= (get timestamp right-parent) (get timestamp oracle-data)) err-invalid-timestamp)				
+					(asserts! 
+						(<= 
+							(if (is-order-triggered left-order-hash)
+								(get timestamp (get-triggered-orders-or-default left-order-hash))
+								(get timestamp left-parent)
+							)
+							(get timestamp oracle-data)
+						)
+						err-invalid-timestamp
+					)
+					(if (get risk right-parent) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
+						(asserts! (if right-buy (>= (get value oracle-data) (get stop right-parent)) (<= (get value oracle-data) (get stop right-parent))) err-stop-not-triggered)
+						(asserts! (if right-buy (< (get value oracle-data) (get stop right-parent)) (> (get value oracle-data) (get stop right-parent))) err-stop-not-triggered)
+					)				
 				)
-				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
-				(asserts! (<= (get timestamp left-parent) (get timestamp oracle-data)) err-invalid-timestamp)				
-				(if (get risk left-parent) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
-					(asserts! (if left-buy (>= (get value oracle-data) (get stop left-parent)) (<= (get value oracle-data) (get stop left-parent))) err-stop-not-triggered)					
-					(asserts! (if left-buy (< (get value oracle-data) (get stop left-parent)) (> (get value oracle-data) (get stop left-parent))) err-stop-not-triggered)
-				)				
-			)
-		)	
-		(if (or (is-eq (get stop right-parent) u0) (is-order-triggered right-order-hash))
-			true
-			(let
-				(
-					(oracle-data (unwrap! right-oracle-data err-no-oracle-data))
-					(symbol (try! (get-oracle-symbol-or-fail (if right-buy (get taker-asset right-parent) (get maker-asset right-parent)))))
-					(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
+				(if (and (is-some left-oracle-data) (or (is-order-triggered right-order-hash) (is-none right-oracle-data)))
+					(let
+						(
+							(oracle-data (unwrap! left-oracle-data err-no-oracle-data))
+							(symbol (try! (get-oracle-symbol-or-fail (if left-buy (get taker-asset left-parent) (get maker-asset left-parent)))))
+							(signer (try! (contract-call? .redstone-verify recover-signer (get timestamp oracle-data) (list {value: (get value oracle-data), symbol: symbol}) (get signature oracle-data))))
+						)
+						(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
+						(asserts! (<= (get timestamp left-parent) (get timestamp oracle-data)) err-invalid-timestamp)				
+						(asserts! 
+							(<= 
+								(get timestamp oracle-data) 
+								(if (is-order-triggered right-order-hash)
+									(get timestamp (get-triggered-orders-or-default right-order-hash))
+									(get timestamp right-parent)
+							 	)
+							) 
+							err-invalid-timestamp
+						)
+						(if (get risk left-parent) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
+							(asserts! (if left-buy (>= (get value oracle-data) (get stop left-parent)) (<= (get value oracle-data) (get stop left-parent))) err-stop-not-triggered)
+							(asserts! (if left-buy (< (get value oracle-data) (get stop left-parent)) (> (get value oracle-data) (get stop left-parent))) err-stop-not-triggered)
+						)				
+					)
+					(let 
+						(							
+							(left-data (unwrap! left-oracle-data err-no-oracle-data))						
+							(symbol (try! (get-oracle-symbol-or-fail (if left-buy (get taker-asset left-parent) (get maker-asset left-parent)))))
+							(left-signer (try! (contract-call? .redstone-verify recover-signer (get timestamp left-data) (list {value: (get value left-data), symbol: symbol}) (get signature left-data))))							
+							(right-data (unwrap! right-oracle-data err-no-oracle-data))
+							(right-signer (try! (contract-call? .redstone-verify recover-signer (get timestamp right-data) (list {value: (get value right-data), symbol: symbol}) (get signature right-data))))							
+						)
+						(asserts! (and (is-trusted-oracle left-signer) (is-trusted-oracle right-signer)) err-untrusted-oracle)
+						(asserts! (and (<= (get timestamp left-parent) (get timestamp left-data)) (<= (get timestamp right-parent) (get timestamp right-data))) err-invalid-timestamp)				
+						(asserts! (<= (get timestamp left-data) (get timestamp right-data)) err-invalid-timestamp)
+						(if (get risk left-parent) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
+							(asserts! (if left-buy (>= (get value left-data) (get stop left-parent)) (<= (get value left-data) (get stop left-parent))) err-stop-not-triggered)
+							(asserts! (if left-buy (< (get value left-data) (get stop left-parent)) (> (get value left-data) (get stop left-parent))) err-stop-not-triggered)
+						)	
+						(if (get risk right-parent) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
+							(asserts! (if right-buy (>= (get value right-data) (get stop right-parent)) (<= (get value right-data) (get stop right-parent))) err-stop-not-triggered)
+							(asserts! (if right-buy (< (get value right-data) (get stop right-parent)) (> (get value right-data) (get stop right-parent))) err-stop-not-triggered)
+						)											
+					)
 				)
-				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
-				(asserts! (<= (get timestamp right-parent) (get timestamp oracle-data)) err-invalid-timestamp)				
-				(if (get risk right-parent) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
-					(asserts! (if right-buy (>= (get value oracle-data) (get stop right-parent)) (<= (get value oracle-data) (get stop right-parent))) err-stop-not-triggered)					
-					(asserts! (if right-buy (< (get value oracle-data) (get stop right-parent)) (> (get value oracle-data) (get stop right-parent))) err-stop-not-triggered)
-				)				
 			)
 		)	
 		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -453,6 +514,7 @@
 							(leverage (div-down parent-limit-in-fixed (- parent-limit-in-fixed linked-limit-in-fixed)))							
 							(stop-floor (div-down (mul-down linked-limit-in-fixed (- max-leverage-in-fixed (get haircut-in-fixed risk-params_))) (- max-leverage-in-fixed ONE_8)))
 						)
+						(asserts! (>= (get stop left-linked) linked-limit-in-fixed) err-invalid-stop-price)
 						(asserts! (>= (get stop left-linked) stop-floor) err-invalid-stop-price)
 						(asserts! (>= max-leverage-in-fixed leverage) err-invalid-limit-price)
 					)
@@ -465,6 +527,7 @@
 							(leverage (div-down parent-limit-in-fixed (- linked-limit-in-fixed parent-limit-in-fixed)))
 							(stop-cap (div-down (mul-down linked-limit-in-fixed (+ max-leverage-in-fixed (get haircut-in-fixed risk-params_))) (+ max-leverage-in-fixed ONE_8)))
 						)
+						(asserts! (<= (get stop left-linked) linked-limit-in-fixed) err-invalid-stop-price)
 						(asserts! (<= (get stop left-linked) stop-cap) err-invalid-stop-price)
 						(asserts! (>= max-leverage-in-fixed leverage) err-invalid-limit-price)
 					)					
@@ -614,8 +677,20 @@
 		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 		;;;;;;;;;;;;;;;;;;;;;;;;;;; COMMON OPS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;		
-		(map-set triggered-orders (get left-order-hash validation-data) true)
-		(map-set triggered-orders (get right-order-hash validation-data) true)				
+		(map-set triggered-orders 
+			(get left-order-hash validation-data)
+			{
+				triggered: true,
+				timestamp: (match left-oracle-data value (get timestamp value) (get timestamp (get parent left-order)))
+			}
+		)
+		(map-set triggered-orders 
+			(get right-order-hash validation-data)
+			{
+				triggered: true,
+				timestamp: (match right-oracle-data value (get timestamp value) (get timestamp (get parent right-order)))
+			}
+		)				
 
 		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 		;;;;;;;;;;;;;;;;;;;;;; PERPETUAL-SPECIFIC OPS ;;;;;;;;;;;;;;;;;;;;;
