@@ -354,8 +354,7 @@
 		;; assets to be exchanged match
 		(asserts! (is-eq (get maker-asset left-order) (get taker-asset right-order)) err-maker-asset-mismatch)
 		(asserts! (is-eq (get taker-asset left-order) (get maker-asset right-order)) err-taker-asset-mismatch)
-		;; left-order must be older than right-order
-		(asserts! (<= (get timestamp left-order) (get timestamp right-order)) err-invalid-timestamp)
+
 		;; one side matches and the taker of the other side is smaller than maker.
 		;; so that maker gives at most maker-asset-data, and taker takes at least taker-asset-data
 		(asserts! 
@@ -374,7 +373,7 @@
 		;; stop limit order
 		(if (and (or (is-order-triggered left-order-hash) (is-none left-oracle-data)) (or (is-order-triggered right-order-hash) (is-none right-oracle-data)))
 			(asserts! 
-				(< 
+				(<= 
 					(if (is-order-triggered left-order-hash)
 						(get timestamp (get-triggered-orders-or-default left-order-hash))
 						(get timestamp left-order)
@@ -397,7 +396,7 @@
 					(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
 					(asserts! (<= (get timestamp right-order) (get timestamp oracle-data)) err-invalid-timestamp)				
 					(asserts! 
-						(< 
+						(<= 
 							(if (is-order-triggered left-order-hash)
 								(get timestamp (get-triggered-orders-or-default left-order-hash))
 								(get timestamp left-order)
@@ -422,7 +421,7 @@
 						(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
 						(asserts! (<= (get timestamp left-order) (get timestamp oracle-data)) err-invalid-timestamp)				
 						(asserts! 
-							(< 
+							(<= 
 								(get timestamp oracle-data) 
 								(if (is-order-triggered right-order-hash)
 									(get timestamp (get-triggered-orders-or-default right-order-hash))
@@ -448,7 +447,7 @@
 						)
 						(asserts! (and (is-trusted-oracle left-signer) (is-trusted-oracle right-signer)) err-untrusted-oracle)
 						(asserts! (and (<= (get timestamp left-order) (get timestamp left-data)) (<= (get timestamp right-order) (get timestamp right-data))) err-invalid-timestamp)				
-						(asserts! (< (get timestamp left-data) (get timestamp right-data)) err-invalid-timestamp)
+						(asserts! (<= (get timestamp left-data) (get timestamp right-data)) err-invalid-timestamp)
 						(if (get risk left-order) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
 							(asserts! (if left-buy (>= (get value left-data) (get stop left-order)) (<= (get value left-data) (get stop left-order))) err-stop-not-triggered)
 							(asserts! (if left-buy (< (get value left-data) (get stop left-order)) (> (get value left-data) (get stop left-order))) err-stop-not-triggered)

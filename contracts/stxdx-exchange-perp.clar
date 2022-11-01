@@ -407,7 +407,7 @@
 		;; stop limit order
 		(if (and (or (is-order-triggered left-order-hash) (is-none left-oracle-data)) (or (is-order-triggered right-order-hash) (is-none right-oracle-data)))
 			(asserts! 
-				(< 
+				(<= 
 					(if (is-order-triggered left-order-hash)
 						(get timestamp (get-triggered-orders-or-default left-order-hash))
 						(get timestamp left-parent)
@@ -429,7 +429,7 @@
 					(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
 					(asserts! (<= (get timestamp right-parent) (get timestamp oracle-data)) err-invalid-timestamp)				
 					(asserts! 
-						(< 
+						(<= 
 							(if (is-order-triggered left-order-hash)
 								(get timestamp (get-triggered-orders-or-default left-order-hash))
 								(get timestamp left-parent)
@@ -453,7 +453,7 @@
 						(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
 						(asserts! (<= (get timestamp left-parent) (get timestamp oracle-data)) err-invalid-timestamp)				
 						(asserts! 
-							(< 
+							(<= 
 								(get timestamp oracle-data) 
 								(if (is-order-triggered right-order-hash)
 									(get timestamp (get-triggered-orders-or-default right-order-hash))
@@ -477,7 +477,7 @@
 						)
 						(asserts! (and (is-trusted-oracle left-signer) (is-trusted-oracle right-signer)) err-untrusted-oracle)
 						(asserts! (and (<= (get timestamp left-parent) (get timestamp left-data)) (<= (get timestamp right-parent) (get timestamp right-data))) err-invalid-timestamp)				
-						(asserts! (< (get timestamp left-data) (get timestamp right-data)) err-invalid-timestamp)
+						(asserts! (<= (get timestamp left-data) (get timestamp right-data)) err-invalid-timestamp)
 						(if (get risk left-parent) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
 							(asserts! (if left-buy (>= (get value left-data) (get stop left-parent)) (<= (get value left-data) (get stop left-parent))) err-stop-not-triggered)
 							(asserts! (if left-buy (< (get value left-data) (get stop left-parent)) (> (get value left-data) (get stop left-parent))) err-stop-not-triggered)
