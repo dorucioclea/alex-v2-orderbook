@@ -36,20 +36,29 @@
 (define-constant type-order-ioc u2)
 
 (define-constant ONE_8 u100000000)
+(define-constant MAX_UINT u340282366920938463463374607431768211455)
 
 (define-data-var contract-owner principal tx-sender)
 (define-map authorised-senders principal bool)
 
 (define-map trusted-oracles (buff 33) bool)
 (define-map oracle-symbols uint (buff 32))
-(define-map triggered-orders (buff 32) bool)
+(define-map triggered-orders (buff 32) { triggered: bool, timestamp: uint })
 
 (define-read-only (is-trusted-oracle (pubkey (buff 33)))
 	(default-to false (map-get? trusted-oracles pubkey))
 )
 
 (define-read-only (is-order-triggered (order-hash (buff 32)))
-	(default-to false (map-get? triggered-orders order-hash))
+	(match (map-get? triggered-orders order-hash)
+		value
+		(get triggered value)
+		false
+	)
+)
+
+(define-read-only (get-triggered-orders-or-default (order-hash (buff 32)))
+	(default-to { triggered: false, timestamp: MAX_UINT } (map-get? triggered-orders order-hash))
 )
 
 (define-constant serialized-key-cancel (serialize-tuple-key "cancel"))
@@ -364,7 +373,10 @@
 		)
 		;; stop limit order
 		(if (or (is-eq (get stop left-order) u0) (is-order-triggered left-order-hash))
-			true
+			(if (is-order-triggered left-order-hash)
+				(asserts! (> (get timestamp right-order) (get timestamp (get-triggered-orders-or-default left-order-hash))) err-invalid-timestamp) ;; left-order must be older than right-order
+				(asserts! (> (get timestamp right-order) (get timestamp left-order)) err-invalid-timestamp) ;; left-order must be older than right-order
+			)
 			(let
 				(
 					(oracle-data (unwrap! left-oracle-data err-no-oracle-data))
@@ -374,6 +386,7 @@
 				)
 				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
 				(asserts! (<= (get timestamp left-order) (get timestamp oracle-data)) err-invalid-timestamp)				
+				(asserts! (< (get timestamp oracle-data) (get timestamp right-order)) err-invalid-timestamp) ;; left-order must be older than right-order	
 				(if (get risk left-order) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
 					(asserts! (if is-buy (>= (get value oracle-data) (get stop left-order)) (<= (get value oracle-data) (get stop left-order))) err-stop-not-triggered)
 					(asserts! (if is-buy (< (get value oracle-data) (get stop left-order)) (> (get value oracle-data) (get stop left-order))) err-stop-not-triggered)
@@ -381,7 +394,10 @@
 			)
 		)	
 		(if (or (is-eq (get stop right-order) u0) (is-order-triggered right-order-hash))
-			true
+			(if (is-order-triggered right-order-hash)
+				(asserts! (< (get timestamp left-order) (get timestamp (get-triggered-orders-or-default left-order-hash))) err-invalid-timestamp) ;; left-order must be older than right-order
+				(asserts! (< (get timestamp left-order) (get timestamp right-order)) err-invalid-timestamp) ;; left-order must be older than right-order
+			)
 			(let
 				(
 					(oracle-data (unwrap! right-oracle-data err-no-oracle-data))
@@ -391,6 +407,7 @@
 				)
 				(asserts! (is-trusted-oracle signer) err-untrusted-oracle)
 				(asserts! (<= (get timestamp right-order) (get timestamp oracle-data)) err-invalid-timestamp)				
+				(asserts! (< (get timestamp left-order) (get timestamp oracle-data)) err-invalid-timestamp) ;; left-parent must be older than right-parent
 				(if (get risk right-order) ;; it is risk-mgmt stop limit, i.e. buy on the way up (to hedge sell) or sell on the way down (to hedge buy)
 					(asserts! (if is-buy (>= (get value oracle-data) (get stop right-order)) (<= (get value oracle-data) (get stop right-order))) err-stop-not-triggered)
 					(asserts! (if is-buy (< (get value oracle-data) (get stop right-order)) (> (get value oracle-data) (get stop right-order))) err-stop-not-triggered)
@@ -523,8 +540,20 @@
 			(left-order-make (get left-order-make validation-data))
 			(right-order-make (get right-order-make validation-data))
 		)
-		(map-set triggered-orders (get left-order-hash validation-data) true)
-		(map-set triggered-orders (get right-order-hash validation-data) true)
+		(map-set triggered-orders 
+			(get left-order-hash validation-data)
+			{
+				triggered: true,
+				timestamp: (match left-oracle-data value (get timestamp value) (get timestamp left-order))
+			}
+		)
+		(map-set triggered-orders 
+			(get right-order-hash validation-data)
+			{
+				triggered: true,
+				timestamp: (match right-oracle-data value (get timestamp value) (get timestamp right-order))
+			}
+		)	
 		(try! (settle-order left-order (* fillable left-order-make) (get maker right-order)))
 		(try! (settle-order right-order (* fillable right-order-make) (get maker left-order)))
 
