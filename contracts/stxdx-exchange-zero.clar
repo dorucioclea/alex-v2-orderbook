@@ -371,7 +371,7 @@
 			err-asset-data-mismatch
 		)
 		;; stop limit order
-		(if (and (or (is-order-triggered left-order-hash) (is-none left-oracle-data)) (or (is-order-triggered right-order-hash) (is-none right-oracle-data)))
+		(if (and (or (is-order-triggered left-order-hash) (is-eq (get stop left-order) u0)) (or (is-order-triggered right-order-hash) (is-eq (get stop right-order) u0)))
 			(asserts! 
 				(<= 
 					(if (is-order-triggered left-order-hash)
@@ -385,7 +385,7 @@
 				) 
 				err-invalid-timestamp
 			) ;; left-order must be older than right-order
-			(if (and (or (is-order-triggered left-order-hash) (is-none left-oracle-data)) (is-some right-oracle-data))
+			(if (and (or (is-order-triggered left-order-hash) (is-eq (get stop left-order) u0)) (is-some right-oracle-data))
 				(let
 					(
 						(oracle-data (unwrap! right-oracle-data err-no-oracle-data))
@@ -410,7 +410,7 @@
 						(asserts! (if is-buy (<= (get value oracle-data) (get stop right-order)) (>= (get value oracle-data) (get stop right-order))) err-stop-not-triggered)
 					)				
 				)
-				(if (and (is-some left-oracle-data) (or (is-order-triggered right-order-hash) (is-none right-oracle-data)))
+				(if (and (is-some left-oracle-data) (or (is-order-triggered right-order-hash) (is-eq (get stop right-order) u0)))
 					(let
 						(
 							(oracle-data (unwrap! left-oracle-data err-no-oracle-data))
